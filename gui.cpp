@@ -8,13 +8,92 @@
 
 namespace {
 
+enum class ViewMode {
+    SplitCompare,
+    OriginalOnly,
+    ShadedOnly,
+};
+
 struct AppState {
     WindowContext window;
     ShaderProgram program;
     FullscreenQuad quad;
     Texture2D texture;
+    int singleWindowWidth = 0;
+    int singleWindowHeight = 0;
+    int splitWindowWidth = 0;
+    int splitWindowHeight = 0;
+    ViewMode viewMode = ViewMode::SplitCompare;
+    ViewMode lastSingleMode = ViewMode::ShadedOnly;
     bool exported = false;
 };
+
+void resizeWindowForViewMode(AppState& state)
+{
+    if (state.window.handle == nullptr) {
+        return;
+    }
+
+    if (state.viewMode == ViewMode::SplitCompare) {
+        glfwSetWindowSize(state.window.handle, state.splitWindowWidth, state.splitWindowHeight);
+        return;
+    }
+
+    glfwSetWindowSize(state.window.handle, state.singleWindowWidth, state.singleWindowHeight);
+}
+
+void setSingleViewMode(AppState& state, ViewMode mode)
+{
+    state.viewMode = mode;
+    state.lastSingleMode = mode;
+    resizeWindowForViewMode(state);
+}
+
+void keyCallback(GLFWwindow* window, int key, int, int action, int)
+{
+    if (action != GLFW_PRESS) {
+        return;
+    }
+
+    auto* state = static_cast<AppState*>(glfwGetWindowUserPointer(window));
+    if (state == nullptr) {
+        return;
+    }
+
+    if (key == GLFW_KEY_1) {
+        state->viewMode = ViewMode::SplitCompare;
+        resizeWindowForViewMode(*state);
+        return;
+    }
+
+    if (key == GLFW_KEY_2) {
+        setSingleViewMode(*state, ViewMode::OriginalOnly);
+        return;
+    }
+
+    if (key == GLFW_KEY_3) {
+        setSingleViewMode(*state, ViewMode::ShadedOnly);
+        return;
+    }
+
+    if (key == GLFW_KEY_TAB) {
+        if (state->viewMode == ViewMode::SplitCompare) {
+            setSingleViewMode(*state, state->lastSingleMode);
+        } else {
+            state->viewMode = ViewMode::SplitCompare;
+            resizeWindowForViewMode(*state);
+        }
+        return;
+    }
+
+    if (key == GLFW_KEY_S || key == GLFW_KEY_SPACE) {
+        ViewMode nextMode = ViewMode::ShadedOnly;
+        if (state->viewMode == ViewMode::ShadedOnly || state->lastSingleMode == ViewMode::ShadedOnly) {
+            nextMode = ViewMode::OriginalOnly;
+        }
+        setSingleViewMode(*state, nextMode);
+    }
+}
 
 void framebufferSizeCallback(GLFWwindow*, int width, int height)
 {
@@ -64,6 +143,7 @@ WindowContext initWindow(const AppConfig& config)
     glfwGetFramebufferSize(window, &framebufferWidth, &framebufferHeight);
     glViewport(0, 0, framebufferWidth, framebufferHeight);
     glfwSetFramebufferSizeCallback(window, framebufferSizeCallback);
+    glfwSetKeyCallback(window, keyCallback);
 
     WindowContext context;
     context.handle = window;
@@ -99,7 +179,27 @@ FullscreenQuad createFullscreenQuad()
     return quad;
 }
 
-void renderFrame(const ShaderProgram& program, const FullscreenQuad& quad, const Texture2D& texture)
+void drawSubview(
+    const ShaderProgram& program,
+    const FullscreenQuad& quad,
+    const Texture2D& texture,
+    int viewportX,
+    int viewportY,
+    int viewportWidth,
+    int viewportHeight,
+    bool shadeEnabled
+)
+{
+    glViewport(viewportX, viewportY, viewportWidth, viewportHeight);
+    glUseProgram(program.id);
+    setShadeEnabled(program, shadeEnabled);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, texture.id);
+    glBindVertexArray(quad.vao);
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+}
+
+void renderFrame(AppState& state)
 {
     glClearColor(
         constants::kClearColor[0],
@@ -109,11 +209,20 @@ void renderFrame(const ShaderProgram& program, const FullscreenQuad& quad, const
     );
     glClear(GL_COLOR_BUFFER_BIT);
 
-    glUseProgram(program.id);
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, texture.id);
-    glBindVertexArray(quad.vao);
-    glDrawArrays(GL_TRIANGLES, 0, 6);
+    int framebufferWidth = 0;
+    int framebufferHeight = 0;
+    glfwGetFramebufferSize(state.window.handle, &framebufferWidth, &framebufferHeight);
+
+    if (state.viewMode == ViewMode::SplitCompare) {
+        const int leftWidth = framebufferWidth / 2;
+        const int rightWidth = framebufferWidth - leftWidth;
+        drawSubview(state.program, state.quad, state.texture, 0, 0, leftWidth, framebufferHeight, false);
+        drawSubview(state.program, state.quad, state.texture, leftWidth, 0, rightWidth, framebufferHeight, true);
+        return;
+    }
+
+    const bool shadeEnabled = state.viewMode == ViewMode::ShadedOnly;
+    drawSubview(state.program, state.quad, state.texture, 0, 0, framebufferWidth, framebufferHeight, shadeEnabled);
 }
 
 void exportFrameIfRequested(AppState& state, const AppConfig& config)
@@ -134,14 +243,25 @@ void exportFrameIfRequested(AppState& state, const AppConfig& config)
 
 void runViewer(AppConfig config)
 {
-    if (config.shouldExport() && !config.sizeSpecified) {
-        const ImageInfo sourceImage = probeImage(config.inputPath);
-        config.windowWidth = sourceImage.width;
-        config.windowHeight = sourceImage.height;
-    }
+    const ImageInfo sourceImage = probeImage(config.inputPath);
+
+    const int singleWindowWidth = config.sizeSpecified ? config.windowWidth : sourceImage.width;
+    const int singleWindowHeight = config.sizeSpecified ? config.windowHeight : sourceImage.height;
+    const int splitWindowWidth = singleWindowWidth * 2;
+    const int splitWindowHeight = singleWindowHeight;
+
+    config.windowWidth = splitWindowWidth;
+    config.windowHeight = splitWindowHeight;
 
     AppState state;
+    state.singleWindowWidth = singleWindowWidth;
+    state.singleWindowHeight = singleWindowHeight;
+    state.splitWindowWidth = splitWindowWidth;
+    state.splitWindowHeight = splitWindowHeight;
+    state.viewMode = ViewMode::SplitCompare;
+    state.lastSingleMode = ViewMode::ShadedOnly;
     state.window = initWindow(config);
+    glfwSetWindowUserPointer(state.window.handle, &state);
     state.program = createShaderProgram(config.vertexShaderPath, config.fragmentShaderPath);
     state.quad = createFullscreenQuad();
     state.texture = loadTexture2D(config.inputPath);
@@ -150,7 +270,7 @@ void runViewer(AppConfig config)
 
     while (!glfwWindowShouldClose(state.window.handle)) {
         glfwPollEvents();
-        renderFrame(state.program, state.quad, state.texture);
+        renderFrame(state);
         exportFrameIfRequested(state, config);
         glfwSwapBuffers(state.window.handle);
     }

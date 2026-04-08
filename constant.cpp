@@ -3,8 +3,8 @@
 namespace constants {
 
 const char kDefaultInputPath[] = "profile.png";
-const char kDefaultVertexShaderPath[] = "shaders/celluloid.vert";
-const char kDefaultFragmentShaderPath[] = "shaders/celluloid.frag";
+const char kDefaultVertexShaderPath[] = "shaders/painter.vert";
+const char kDefaultFragmentShaderPath[] = "shaders/painter.frag";
 const char kWindowTitle[] = "Celluloid Viewer";
 
 const int kDefaultWindowWidth = 1280;

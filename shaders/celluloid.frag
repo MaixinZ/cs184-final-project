@@ -5,6 +5,7 @@ out vec4 FragColor;
 
 uniform sampler2D tex;
 uniform int uDebugMode;
+uniform int uShadeEnabled;
 
 uniform vec3 uLightDir;
 uniform vec3 uLightTint;
@@ -187,6 +188,11 @@ void main()
     vec2 texel = 1.0 / vec2(textureSize(tex, 0));
 
     vec3 baseColor = texture(tex, uv).rgb;
+    if (uShadeEnabled == 0) {
+        FragColor = vec4(baseColor, 1.0);
+        return;
+    }
+
     vec3 smoothColor = sampleRegionAverage(uv, texel);
     float smoothLuma = luminance(smoothColor);
     vec2 lumaGradient = evalLumaGradient(uv, texel);

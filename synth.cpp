@@ -136,3 +136,9 @@ void configureCelluloidUniforms(const ShaderProgram& program, int debugMode)
     setUniformFloat(program.id, "uOutlineThreshold", constants::kOutlineThreshold);
     setUniformFloat(program.id, "uFogWeight", constants::kFogWeight);
 }
+
+void setShadeEnabled(const ShaderProgram& program, bool enabled)
+{
+    glUseProgram(program.id);
+    setUniformInt(program.id, "uShadeEnabled", enabled ? 1 : 0);
+}

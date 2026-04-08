@@ -59,7 +59,8 @@ std::string usage(const char* executable)
     return std::string("Usage: ") + executable +
            " [input_path] [output_path.ppm] [--input path] [--output path.ppm] [--vert shader.vert] [--frag shader.frag]\n"
            "       [--debug final|ndotl|band|shadow|rim|outline|fog] [--width pixels] [--height pixels]\n"
-           "If --output is provided, the first rendered frame is saved as a PPM image and the program exits.\n";
+           "If --output is provided, the first rendered frame is saved as a PPM image and the program exits.\n"
+           "Hotkeys: 1 split compare, 2 original only, 3 shaded only, Tab toggle split/single, S or Space toggle shading.\n";
 }
 
 std::optional<AppConfig> parseArgs(int argc, char** argv)

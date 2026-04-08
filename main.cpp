@@ -1,6 +1,9 @@
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
+#include <algorithm>
+#include <cstdlib>
 #include <iostream>
+#include <vector>
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
@@ -16,6 +19,83 @@ void main()
 {
     uv = aUV;
     gl_Position = vec4(aPos,0.0,1.0);
+}
+)";
+
+const char* fragmentShaderSourceChinesePainterly = R"(
+#version 330 core
+in vec2 uv;
+out vec4 FragColor;
+uniform sampler2D tex;
+void main(){
+    vec2 texel = 1.0 / vec2(textureSize(tex, 0));
+    vec3 color = texture(tex, uv).rgb;
+
+    // ---- 1. 亮度提取 ----
+    float luma = dot(color, vec3(0.299, 0.587, 0.114));
+
+    // ---- 2. 边缘检测（同原版，用于描线） ----
+    float lLeft  = dot(texture(tex, uv - vec2(texel.x, 0.0)).rgb, vec3(0.299, 0.587, 0.114));
+    float lRight = dot(texture(tex, uv + vec2(texel.x, 0.0)).rgb, vec3(0.299, 0.587, 0.114));
+    float lUp    = dot(texture(tex, uv + vec2(0.0, texel.y)).rgb, vec3(0.299, 0.587, 0.114));
+    float lDown  = dot(texture(tex, uv - vec2(0.0, texel.y)).rgb, vec3(0.299, 0.587, 0.114));
+    float dx = lRight - lLeft;
+    float dy = lUp    - lDown;
+    float edge = length(vec2(dx, dy));
+
+    // ---- 3. 宣纸底色 ----
+    // 比原版更暖、更黄，加轻微纤维噪点
+    float paperNoise = fract(sin(dot(uv * 800.0, vec2(127.1, 311.7))) * 43758.5);
+    vec3  paper = vec3(0.97, 0.94, 0.85) + paperNoise * 0.012;
+
+    // ---- 4. 墨色分层：焦浓重淡清 五档 ----
+    // 山水画不做连续渐变，而是量化成几个墨色层次
+    float darkness = 1.0 - luma;
+    float inkLevel;
+    if      (darkness < 0.15) inkLevel = 0.00;  // 留白：高亮区域不上墨
+    else if (darkness < 0.35) inkLevel = 0.12;  // 清墨：极淡
+    else if (darkness < 0.55) inkLevel = 0.32;  // 淡墨
+    else if (darkness < 0.75) inkLevel = 0.62;  // 重墨
+    else                      inkLevel = 0.88;  // 焦墨：最深
+
+    // 在层级边界加一点 smoothstep 过渡，避免完全硬切
+    inkLevel = mix(inkLevel,
+                   inkLevel + 0.08,
+                   smoothstep(0.0, 0.05, fract(darkness / 0.20)));
+    inkLevel = clamp(inkLevel, 0.0, 1.0);
+
+    // ---- 5. 弱笔触墨纹（去除明显方向性斜线） ----
+    // 使用各向同性噪点代替正弦斜线，避免暗部出现重复斜纹。
+    float washNoise = fract(sin(dot(uv * vec2(350.0, 290.0), vec2(12.9898, 78.233))) * 43758.5453);
+    float brushStroke = smoothstep(0.86, 1.00, washNoise) * smoothstep(0.55, 0.95, darkness);
+    brushStroke *= 0.08;  // 只保留极轻微墨纹
+    brushStroke = clamp(brushStroke, 0.0, 1.0);
+
+    // ---- 6. 墨色定义 ----
+    // 山水画的墨不是纯黑，而是带一点冷调的深灰（松烟墨色）
+    vec3 ink = vec3(0.08, 0.09, 0.11);
+
+    // ---- 7. 合成：纸 → 墨色渲染 → 笔触 → 边缘线 ----
+
+    // 基础底色：纸 + 墨色分层
+    vec3 result = mix(paper, ink, inkLevel * 0.80);
+
+    // 叠加皴法笔触
+    result = mix(result, ink, brushStroke * 0.12);
+
+    // 边缘线：山水画轮廓线比素描细、浅，更像"勾勒"而非"描边"
+    // 同时加一点飞白：边缘线也不完全实
+    float edgeMask = smoothstep(0.06, 0.16, edge);
+    float edgeFly  = fract(sin(dot(uv * 500.0, vec2(23.1, 71.5))) * 7919.0);
+    edgeMask *= step(0.15, edgeFly);  // 边缘线也有断裂
+    result = mix(result, ink * 1.1, edgeMask * 0.75);
+
+    // ---- 8. 留白保护：极亮区域强制还原纸色 ----
+    // 山水画的留白是主动设计的，不能被任何效果覆盖
+    float highlight = smoothstep(0.80, 0.95, luma);
+    result = mix(result, paper, highlight * 0.9);
+
+    FragColor = vec4(result, 1.0);
 }
 )";
 
@@ -124,24 +204,94 @@ void main()
 }
 )";
 
+const char* fragmentShaderSourceOriginal = R"(
+#version 330 core
+in vec2 uv;
+out vec4 FragColor;
+uniform sampler2D tex;
+void main()
+{
+    FragColor = texture(tex, uv);
+}
+)";
+
+const char* fragmentShaderSourceGray = R"(
+#version 330 core
+in vec2 uv;
+out vec4 FragColor;
+uniform sampler2D tex;
+void main()
+{
+    vec3 c = texture(tex, uv).rgb;
+    float luma = dot(c, vec3(0.299, 0.587, 0.114));
+    FragColor = vec4(vec3(luma), 1.0);
+}
+)";
+
+const char* fragmentShaderSourcePixelArt = R"(
+#version 330 core
+in vec2 uv;
+out vec4 FragColor;
+uniform sampler2D tex;
+void main()
+{
+    // 先把采样坐标吸附到固定网格，形成像素块效果
+    vec2 texSize = vec2(textureSize(tex, 0));
+    float pixelScale = 8.0; // 越大像素块越大
+    vec2 pixelGrid = texSize / pixelScale;
+    vec2 snappedUV = (floor(uv * pixelGrid) + 0.5) / pixelGrid;
+
+    vec3 c = texture(tex, snappedUV).rgb;
+
+    // 再做颜色量化，让颜色层次更像像素游戏
+    float levels = 6.0;
+    c = floor(c * levels) / levels;
+
+    // 轻微提升饱和度，让像素风更“干净”
+    float luma = dot(c, vec3(0.299, 0.587, 0.114));
+    c = mix(vec3(luma), c, 1.2);
+
+    FragColor = vec4(clamp(c, 0.0, 1.0), 1.0);
+}
+)";
+
 
 GLuint compileShader(GLenum type, const char* src)
 {
     GLuint shader = glCreateShader(type);
     glShaderSource(shader,1,&src,nullptr);
     glCompileShader(shader);
+
+    GLint ok = 0;
+    glGetShaderiv(shader, GL_COMPILE_STATUS, &ok);
+    if (!ok)
+    {
+        char log[512];
+        glGetShaderInfoLog(shader, sizeof(log), nullptr, log);
+        std::cout << "Shader compile error:\n" << log << "\n";
+    }
+
     return shader;
 }
 
-GLuint createProgram()
+GLuint createProgram(const char* fragmentSource)
 {
     GLuint vs = compileShader(GL_VERTEX_SHADER,vertexShaderSource);
-    GLuint fs = compileShader(GL_FRAGMENT_SHADER,fragmentShaderSource);
+    GLuint fs = compileShader(GL_FRAGMENT_SHADER,fragmentSource);
 
     GLuint program = glCreateProgram();
     glAttachShader(program,vs);
     glAttachShader(program,fs);
     glLinkProgram(program);
+
+    GLint ok = 0;
+    glGetProgramiv(program, GL_LINK_STATUS, &ok);
+    if (!ok)
+    {
+        char log[512];
+        glGetProgramInfoLog(program, sizeof(log), nullptr, log);
+        std::cout << "Program link error:\n" << log << "\n";
+    }
 
     glDeleteShader(vs);
     glDeleteShader(fs);
@@ -149,7 +299,7 @@ GLuint createProgram()
     return program;
 }
 
-int main()
+int main(int argc, char** argv)
 {
     if(!glfwInit())
     {
@@ -172,7 +322,52 @@ int main()
     glewExperimental = true;
     glewInit();
 
-    GLuint program = createProgram();
+    struct ShaderOption
+    {
+        const char* name;
+        const char* source;
+        GLuint program;
+    };
+
+    std::vector<ShaderOption> shaders =
+    {
+        {"Painterly", fragmentShaderSource, 0},
+        {"Original", fragmentShaderSourceOriginal, 0},
+        {"Gray", fragmentShaderSourceGray, 0},
+        {"ChinesePainterly", fragmentShaderSourceChinesePainterly, 0},
+        {"PixelArt", fragmentShaderSourcePixelArt, 0}
+    };
+
+    for (auto& shader : shaders)
+    {
+        shader.program = createProgram(shader.source);
+    }
+
+    int activeShader = 0;
+    if (argc > 1)
+    {
+        int cliShader = std::atoi(argv[1]);
+        activeShader = std::clamp(cliShader, 0, (int)shaders.size() - 1);
+    }
+
+    std::cout << "Shader options:\n";
+    for (int i = 0; i < (int)shaders.size(); ++i)
+    {
+        std::cout << "  " << i << ": " << shaders[i].name << "\n";
+    }
+    std::cout << "Run with ./viewer <index> to choose startup shader.\n";
+    std::cout << "Press keys 1-" << shaders.size() << " to switch at runtime.\n";
+    std::cout << "Current shader: " << shaders[activeShader].name << "\n";
+
+    for (const auto& shader : shaders)
+    {
+        glUseProgram(shader.program);
+        GLint texLoc = glGetUniformLocation(shader.program, "tex");
+        if (texLoc >= 0)
+        {
+            glUniform1i(texLoc, 0);
+        }
+    }
 
     float quad[] =
     {
@@ -228,9 +423,15 @@ int main()
     {
         glfwPollEvents();
 
+        if (glfwGetKey(window, GLFW_KEY_1) == GLFW_PRESS) activeShader = 0;
+        if ((int)shaders.size() > 1 && glfwGetKey(window, GLFW_KEY_2) == GLFW_PRESS) activeShader = 1;
+        if ((int)shaders.size() > 2 && glfwGetKey(window, GLFW_KEY_3) == GLFW_PRESS) activeShader = 2;
+        if ((int)shaders.size() > 3 && glfwGetKey(window, GLFW_KEY_4) == GLFW_PRESS) activeShader = 3;
+        if ((int)shaders.size() > 4 && glfwGetKey(window, GLFW_KEY_5) == GLFW_PRESS) activeShader = 4;
+
         glClear(GL_COLOR_BUFFER_BIT);
 
-        glUseProgram(program);
+        glUseProgram(shaders[activeShader].program);
 
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D,texture);
@@ -240,6 +441,15 @@ int main()
 
         glfwSwapBuffers(window);
     }
+
+    for (const auto& shader : shaders)
+    {
+        glDeleteProgram(shader.program);
+    }
+
+    glDeleteTextures(1, &texture);
+    glDeleteBuffers(1, &vbo);
+    glDeleteVertexArrays(1, &vao);
 
     glfwTerminate();
 }

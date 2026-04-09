@@ -111,14 +111,12 @@ ShaderProgram createShaderProgram(const std::string& vertexShaderPath, const std
     return program;
 }
 
-void configureCelluloidUniforms(const ShaderProgram& program, int debugMode)
+void configureStyleUniforms(const ShaderProgram& program, const std::string& styleName, int debugMode)
 {
     glUseProgram(program.id);
 
     setUniformInt(program.id, "tex", 0);
     setUniformInt(program.id, "uDebugMode", debugMode);
-
-    setUniformVec3(program.id, "uLightDir", constants::kLightDir);
     setUniformVec3(program.id, "uLightTint", constants::kLightTint);
     setUniformVec3(program.id, "uMidTint", constants::kMidTint);
     setUniformVec3(program.id, "uShadowTint", constants::kShadowTint);
@@ -126,15 +124,25 @@ void configureCelluloidUniforms(const ShaderProgram& program, int debugMode)
     setUniformVec3(program.id, "uRimColor", constants::kRimColor);
     setUniformVec3(program.id, "uOutlineColor", constants::kOutlineColor);
     setUniformVec3(program.id, "uAtmosphereColor", constants::kAtmosphereColor);
-
-    setUniformFloat(program.id, "uShadowThreshold", constants::kShadowThreshold);
     setUniformFloat(program.id, "uShadowSoftness", constants::kShadowSoftness);
-    setUniformFloat(program.id, "uMidThreshold", constants::kMidThreshold);
-    setUniformFloat(program.id, "uHighlightThreshold", constants::kHighlightThreshold);
     setUniformFloat(program.id, "uSpecThreshold", constants::kSpecThreshold);
     setUniformFloat(program.id, "uRimThreshold", constants::kRimThreshold);
-    setUniformFloat(program.id, "uOutlineThreshold", constants::kOutlineThreshold);
     setUniformFloat(program.id, "uFogWeight", constants::kFogWeight);
+
+    if (styleName == "black-ink") {
+        setUniformVec3(program.id, "uLightDir", constants::kBlackInkLightDir);
+        setUniformFloat(program.id, "uShadowThreshold", constants::kBlackInkShadowThreshold);
+        setUniformFloat(program.id, "uMidThreshold", constants::kBlackInkMidThreshold);
+        setUniformFloat(program.id, "uHighlightThreshold", constants::kBlackInkHighlightThreshold);
+        setUniformFloat(program.id, "uOutlineThreshold", constants::kBlackInkOutlineThreshold);
+        return;
+    }
+
+    setUniformVec3(program.id, "uLightDir", constants::kLightDir);
+    setUniformFloat(program.id, "uShadowThreshold", constants::kShadowThreshold);
+    setUniformFloat(program.id, "uMidThreshold", constants::kMidThreshold);
+    setUniformFloat(program.id, "uHighlightThreshold", constants::kHighlightThreshold);
+    setUniformFloat(program.id, "uOutlineThreshold", constants::kOutlineThreshold);
 }
 
 void setShadeEnabled(const ShaderProgram& program, bool enabled)

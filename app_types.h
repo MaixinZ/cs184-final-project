@@ -10,8 +10,9 @@
 struct AppConfig {
     std::string inputPath = constants::kDefaultInputPath;
     std::string outputPath;
-    std::string vertexShaderPath = constants::kDefaultVertexShaderPath;
-    std::string fragmentShaderPath = constants::kDefaultFragmentShaderPath;
+    std::string styleName = constants::kDefaultStyleName;
+    std::string vertexShaderPath;
+    std::string fragmentShaderPath;
     int windowWidth = constants::kDefaultWindowWidth;
     int windowHeight = constants::kDefaultWindowHeight;
     int debugMode = constants::kDebugFinal;

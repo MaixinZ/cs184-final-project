@@ -2,10 +2,10 @@
 
 namespace constants {
 
-const char kDefaultInputPath[] = "profile.png";
-const char kDefaultVertexShaderPath[] = "shaders/painter.vert";
-const char kDefaultFragmentShaderPath[] = "shaders/painter.frag";
-const char kWindowTitle[] = "Celluloid Viewer";
+const char kDefaultInputPath[] = "example/profile.png";
+const char kDefaultStyleName[] = "painter";
+const char kShaderDirectory[] = "shaders";
+const char kWindowTitle[] = "Stylized Shader Viewer";
 
 const int kDefaultWindowWidth = 1280;
 const int kDefaultWindowHeight = 720;
@@ -19,6 +19,20 @@ const int kDebugShadow = 3;
 const int kDebugRim = 4;
 const int kDebugOutline = 5;
 const int kDebugFog = 6;
+const int kDebugSilhouette = 7;
+const int kDebugInternalEdge = 8;
+const int kDebugEmissiveAdjacency = 9;
+const int kDebugHighPass = 10;
+const int kDebugContrastPositive = 11;
+const int kDebugContrastNegative = 12;
+const int kDebugEdgeContribution = 13;
+const int kDebugContrastContribution = 14;
+const int kDebugContactEdge = 15;
+const int kDebugBlackFill = 16;
+const int kDebugScreentone = 17;
+const int kDebugHatchDirection = 18;
+const int kDebugLinePriority = 19;
+const int kDebugInkCoverage = 20;
 
 const GLfloat kClearColor[4] = {0.95f, 0.88f, 0.74f, 1.0f};
 const GLfloat kLightDir[3] = {-0.45f, 0.35f, 0.82f};
@@ -38,5 +52,11 @@ const GLfloat kSpecThreshold = 0.58f;
 const GLfloat kRimThreshold = 0.42f;
 const GLfloat kOutlineThreshold = 0.16f;
 const GLfloat kFogWeight = 0.55f;
+
+const GLfloat kBlackInkLightDir[3] = {-0.28f, 0.18f, 0.94f};
+const GLfloat kBlackInkShadowThreshold = 0.28f;
+const GLfloat kBlackInkMidThreshold = 0.46f;
+const GLfloat kBlackInkHighlightThreshold = 0.70f;
+const GLfloat kBlackInkOutlineThreshold = 0.10f;
 
 }  // namespace constants

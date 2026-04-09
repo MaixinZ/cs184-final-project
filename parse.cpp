@@ -48,6 +48,48 @@ int parseDebugMode(const std::string& value)
     if (value == "fog") {
         return constants::kDebugFog;
     }
+    if (value == "silhouette") {
+        return constants::kDebugSilhouette;
+    }
+    if (value == "internal-edge") {
+        return constants::kDebugInternalEdge;
+    }
+    if (value == "emissive-adj") {
+        return constants::kDebugEmissiveAdjacency;
+    }
+    if (value == "high-pass") {
+        return constants::kDebugHighPass;
+    }
+    if (value == "contrast-pos") {
+        return constants::kDebugContrastPositive;
+    }
+    if (value == "contrast-neg") {
+        return constants::kDebugContrastNegative;
+    }
+    if (value == "edge-contrib") {
+        return constants::kDebugEdgeContribution;
+    }
+    if (value == "contrast-contrib") {
+        return constants::kDebugContrastContribution;
+    }
+    if (value == "contact-edge") {
+        return constants::kDebugContactEdge;
+    }
+    if (value == "black-fill") {
+        return constants::kDebugBlackFill;
+    }
+    if (value == "screentone") {
+        return constants::kDebugScreentone;
+    }
+    if (value == "hatch-dir") {
+        return constants::kDebugHatchDirection;
+    }
+    if (value == "line-priority") {
+        return constants::kDebugLinePriority;
+    }
+    if (value == "ink-coverage") {
+        return constants::kDebugInkCoverage;
+    }
 
     throw std::runtime_error("Unknown debug mode: " + value);
 }
@@ -57,8 +99,11 @@ int parseDebugMode(const std::string& value)
 std::string usage(const char* executable)
 {
     return std::string("Usage: ") + executable +
-           " [input_path] [output_path.ppm] [--input path] [--output path.ppm] [--vert shader.vert] [--frag shader.frag]\n"
-           "       [--debug final|ndotl|band|shadow|rim|outline|fog] [--width pixels] [--height pixels]\n"
+           " [input_path] [output_path.ppm] [--input path] [--output path.ppm] [--style name|-s name]\n"
+           "       [--debug final|ndotl|band|shadow|rim|outline|fog|silhouette|internal-edge|emissive-adj]\n"
+           "       [--debug high-pass|contrast-pos|contrast-neg|edge-contrib|contrast-contrib|contact-edge]\n"
+           "       [--debug black-fill|screentone|hatch-dir|line-priority|ink-coverage] [--width pixels] [--height pixels]\n"
+           "Style name resolves to shaders/<style>.vert and shaders/<style>.frag.\n"
            "If --output is provided, the first rendered frame is saved as a PPM image and the program exits.\n"
            "Hotkeys: 1 split compare, 2 original only, 3 shaded only, Tab toggle split/single, S or Space toggle shading.\n";
 }
@@ -92,13 +137,8 @@ std::optional<AppConfig> parseArgs(int argc, char** argv)
             continue;
         }
 
-        if (arg == "--vert") {
-            config.vertexShaderPath = readValue("--vert");
-            continue;
-        }
-
-        if (arg == "--frag") {
-            config.fragmentShaderPath = readValue("--frag");
+        if (arg == "--style" || arg == "-s") {
+            config.styleName = readValue("--style");
             continue;
         }
 

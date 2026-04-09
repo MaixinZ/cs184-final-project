@@ -266,7 +266,7 @@ void runViewer(AppConfig config)
     state.quad = createFullscreenQuad();
     state.texture = loadTexture2D(config.inputPath);
 
-    configureCelluloidUniforms(state.program, config.debugMode);
+    configureStyleUniforms(state.program, config.styleName, config.debugMode);
 
     while (!glfwWindowShouldClose(state.window.handle)) {
         glfwPollEvents();

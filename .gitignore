@@ -8,3 +8,6 @@ build/
 .trae
 .cursor
 .clangd
+**/.DS_Store
+tmp/
+*.obj

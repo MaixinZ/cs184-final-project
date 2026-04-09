@@ -1,13 +1,31 @@
-build/
-.vscode/
-.idea/
-.DS_Store
-*.log
-*.tmp
-.claude
-.trae
-.cursor
-.clangd
-**/.DS_Store
-tmp/
+# Build directories
+/build/
+bin/
+obj/
+# Compiled object files
+*.o
 *.obj
+# Executables
+*.exe
+*.out
+*.app
+# Precompiled headers
+*.gch
+*.pch
+# Debugger and linker files
+*.pdb
+*.ilk
+# Compiled libraries
+*.so
+*.dylib
+*.dll
+*.a
+*.lib
+# IDE-specific files (e.g., Visual Studio, Code::Blocks)
+vscode/
+*.sln
+*.user
+*.layout
+.clangd
+# agent files
+*.agent

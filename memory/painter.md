@@ -4,6 +4,7 @@ Source shaders:
 
 - `shaders/painter.vert`
 - `shaders/painter.frag`
+- `fx/painter.fx`
 
 ## 1. Support Constraint
 
@@ -12,7 +13,7 @@ This project currently supports:
 - one source image texture for the full frame
 - one fullscreen quad and one GLSL program at a time
 - GUI split compare via `uShadeEnabled`
-- offline `.ppm` export
+- offline shaded-only `16:9` `.ppm` export
 - style selection through `./viewer -s painter`
 
 This project does not yet support:

@@ -2,9 +2,9 @@
 
 Canonical style memory files:
 
-- `mem/painter.md`
-- `mem/celluloid.md`
-- `mem/black-ink.md`
+- `memory/painter.md`
+- `memory/celluloid.md`
+- `memory/black-ink.md`
 
 Current repository style names used by `./viewer -s <style>`:
 
@@ -16,6 +16,13 @@ Notes:
 
 - `black-int` appeared in chat as a typo; the canonical style name in the repo is `black-ink`.
 - `light-accent` also exists in the repo, but it is not part of this memory set because the user asked to track only `painter`, `celluloid`, and `black-ink`.
+- Each tracked style currently has two implementation surfaces:
+  - viewer GLSL under `shaders/`
+  - ReShade adaptation under `fx/`
+- The viewer export path now writes a shaded-only `16:9` `.ppm` crop instead of dumping the entire split-compare framebuffer.
+- `black-ink` currently has a deliberate divergence between targets:
+  - `shaders/black-ink.frag` still keeps baked `kDotBoost` and `kDarkOutlineAssist`
+  - `fx/black-ink.fx` was later simplified to fixed Sobel plus mixed debug toggles
 
 .fx DOF example file for ReShade:
 

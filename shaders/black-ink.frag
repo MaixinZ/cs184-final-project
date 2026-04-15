@@ -338,7 +338,7 @@ float evalScreentoneMask(
     float mildTone = smoothstep(0.22, 0.44, shadowClass) * (1.0 - smoothstep(0.58, 0.74, shadowClass));
     float denseTone = smoothstep(0.46, 0.70, shadowClass) * (1.0 - blackFillMask);
 
-    float dotDensity = saturate(shadowClass * 3.80);
+    float dotDensity = saturate(shadowClass * 2.80);
     float hatchDensity = saturate((shadowClass - 0.20) * 1.35);
     float crossDensity = saturate((shadowClass - 0.48) * 2.00);
 
@@ -352,6 +352,13 @@ float evalScreentoneMask(
     float tone = mix(dots * mildTone, hatch * denseTone, saturate(materialStyle * 0.92));
     tone = max(tone, cross * denseTone * smoothstep(0.62, 0.82, shadowClass));
     return saturate(tone * (1.0 - blackFillMask) * kToneStrength);
+}
+
+float evalToneEdgeSuppression(float silhouetteMask, float creaseMask, float contactMask, float linePriority)
+{
+    float edgeSuppress = smoothstep(0.14, 0.42, max(max(silhouetteMask, creaseMask), contactMask));
+    float prioritySuppress = smoothstep(0.18, 0.52, linePriority);
+    return saturate(max(edgeSuppress * 0.85, prioritySuppress * 0.70));
 }
 
 vec3 compositeInkLayers(
@@ -372,6 +379,7 @@ vec3 compositeInkLayers(
     float lineInk = saturate(max(max(silhouetteInk, creaseInk), contactInk));
     float blackCoverage = smoothstep(0.36, 0.82, blackFillMask * (1.0 - reserveWhite));
     float toneCoverage = smoothstep(0.18, 0.70, screentoneMask) * 0.84;
+    toneCoverage *= 1.0 - smoothstep(0.22, 0.55, linePriority) * 0.60;
     float coverage = max(blackCoverage, max(toneCoverage, lineInk));
     coverage = max(coverage, silhouetteMask * 0.90);
     inkCoverage = saturate(coverage);
@@ -448,6 +456,7 @@ void main()
 
     float materialStyle = smoothstep(0.06, 0.24, saturationEstimate(baseColor) + detailMask * 0.18);
     float hatchAngle = atan(lightDirValue.y, lightDirValue.x) + mix(0.35, 0.95, materialStyle);
+    float linePriority = evalLinePriority(silhouetteMask, creaseMask, contactMask, detailMask, depthProxy);
     float hatchDirectionDebug = 0.0;
     float screentoneMask = evalScreentoneMask(
         shadowClass,
@@ -457,8 +466,8 @@ void main()
         hatchAngle,
         hatchDirectionDebug
     );
+    screentoneMask *= 1.0 - evalToneEdgeSuppression(silhouetteMask, creaseMask, contactMask, linePriority);
 
-    float linePriority = evalLinePriority(silhouetteMask, creaseMask, contactMask, detailMask, depthProxy);
     float reserveWhite = smoothstep(0.74, 0.96, lightFacingness) * smoothstep(0.72, 0.95, lumaValue) * blackFillMask;
 
     float inkCoverage = 0.0;

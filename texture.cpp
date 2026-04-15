@@ -71,14 +71,14 @@ Texture2D loadTexture2D(const std::string& path)
     return texture;
 }
 
-void saveFramebufferToPpm(const std::string& path, int width, int height)
+void saveFramebufferRegionToPpm(const std::string& path, int x, int y, int width, int height)
 {
     std::vector<unsigned char> pixels(static_cast<size_t>(width) * static_cast<size_t>(height) * 3U);
 
     glFinish();
     glPixelStorei(GL_PACK_ALIGNMENT, 1);
     glReadBuffer(GL_BACK);
-    glReadPixels(0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE, pixels.data());
+    glReadPixels(x, y, width, height, GL_RGB, GL_UNSIGNED_BYTE, pixels.data());
 
     std::ofstream output(path, std::ios::binary);
     if (!output) {
@@ -92,4 +92,9 @@ void saveFramebufferToPpm(const std::string& path, int width, int height)
         );
         output.write(row, static_cast<std::streamsize>(width * 3));
     }
+}
+
+void saveFramebufferToPpm(const std::string& path, int width, int height)
+{
+    saveFramebufferRegionToPpm(path, 0, 0, width, height);
 }

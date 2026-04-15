@@ -28,6 +28,13 @@ struct AppState {
     bool exported = false;
 };
 
+struct ExportRegion {
+    int x = 0;
+    int y = 0;
+    int width = 0;
+    int height = 0;
+};
+
 void resizeWindowForViewMode(AppState& state)
 {
     if (state.window.handle == nullptr) {
@@ -199,6 +206,34 @@ void drawSubview(
     glDrawArrays(GL_TRIANGLES, 0, 6);
 }
 
+ExportRegion makeCenteredAspectRegion(int originX, int originY, int maxWidth, int maxHeight, int aspectWidth, int aspectHeight)
+{
+    ExportRegion region;
+    region.x = originX;
+    region.y = originY;
+    region.width = maxWidth;
+    region.height = maxHeight;
+
+    if (maxWidth * aspectHeight > maxHeight * aspectWidth) {
+        region.height = maxHeight;
+        region.width = (maxHeight * aspectWidth) / aspectHeight;
+        region.x = originX + (maxWidth - region.width) / 2;
+    } else {
+        region.width = maxWidth;
+        region.height = (maxWidth * aspectHeight) / aspectWidth;
+        region.y = originY + (maxHeight - region.height) / 2;
+    }
+
+    if (region.width < 1) {
+        region.width = 1;
+    }
+    if (region.height < 1) {
+        region.height = 1;
+    }
+
+    return region;
+}
+
 void renderFrame(AppState& state)
 {
     glClearColor(
@@ -234,7 +269,48 @@ void exportFrameIfRequested(AppState& state, const AppConfig& config)
     int framebufferWidth = 0;
     int framebufferHeight = 0;
     glfwGetFramebufferSize(state.window.handle, &framebufferWidth, &framebufferHeight);
-    saveFramebufferToPpm(config.outputPath, framebufferWidth, framebufferHeight);
+
+    int exportOriginX = 0;
+    int exportWidth = framebufferWidth;
+    if (state.viewMode == ViewMode::SplitCompare) {
+        exportOriginX = framebufferWidth / 2;
+        exportWidth = framebufferWidth - exportOriginX;
+    }
+
+    const ExportRegion exportRegion = makeCenteredAspectRegion(
+        exportOriginX,
+        0,
+        exportWidth,
+        framebufferHeight,
+        16,
+        9
+    );
+
+    glClearColor(
+        constants::kClearColor[0],
+        constants::kClearColor[1],
+        constants::kClearColor[2],
+        constants::kClearColor[3]
+    );
+    glClear(GL_COLOR_BUFFER_BIT);
+    drawSubview(
+        state.program,
+        state.quad,
+        state.texture,
+        exportRegion.x,
+        exportRegion.y,
+        exportRegion.width,
+        exportRegion.height,
+        true
+    );
+
+    saveFramebufferRegionToPpm(
+        config.outputPath,
+        exportRegion.x,
+        exportRegion.y,
+        exportRegion.width,
+        exportRegion.height
+    );
     state.exported = true;
     glfwSetWindowShouldClose(state.window.handle, GLFW_TRUE);
 }

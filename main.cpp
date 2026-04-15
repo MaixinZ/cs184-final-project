@@ -1,8 +1,11 @@
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
 #include <algorithm>
+#include <cstdio>
 #include <cstdlib>
+#include <fstream>
 #include <iostream>
+#include <string>
 #include <vector>
 
 #define STB_IMAGE_IMPLEMENTATION
@@ -299,6 +302,51 @@ GLuint createProgram(const char* fragmentSource)
     return program;
 }
 
+bool saveCurrentFramePPM(const std::string& outputPath, int width, int height)
+{
+    if (width <= 0 || height <= 0)
+    {
+        return false;
+    }
+
+    std::vector<unsigned char> pixels(width * height * 3);
+    glPixelStorei(GL_PACK_ALIGNMENT, 1);
+    glReadBuffer(GL_BACK);
+    glReadPixels(0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE, pixels.data());
+
+    std::ofstream out(outputPath, std::ios::binary);
+    if (!out.is_open())
+    {
+        return false;
+    }
+
+    out << "P6\n" << width << " " << height << "\n255\n";
+
+    // OpenGL 的原点在左下角，PPM 习惯从左上角开始写
+    for (int y = height - 1; y >= 0; --y)
+    {
+        const unsigned char* row = pixels.data() + y * width * 3;
+        out.write(reinterpret_cast<const char*>(row), width * 3);
+    }
+
+    return out.good();
+}
+
+bool saveCurrentFramePNG(const std::string& outputPath, int width, int height, int index)
+{
+    std::string tempPPM = "pixelart_tmp_" + std::to_string(index) + ".ppm";
+    if (!saveCurrentFramePPM(tempPPM, width, height))
+    {
+        return false;
+    }
+
+    std::string command = "sips -s format png \"" + tempPPM + "\" --out \"" + outputPath + "\" > /dev/null 2>&1";
+    int ret = std::system(command.c_str());
+    std::remove(tempPPM.c_str());
+
+    return ret == 0;
+}
+
 int main(int argc, char** argv)
 {
     if(!glfwInit())
@@ -357,6 +405,7 @@ int main(int argc, char** argv)
     }
     std::cout << "Run with ./viewer <index> to choose startup shader.\n";
     std::cout << "Press keys 1-" << shaders.size() << " to switch at runtime.\n";
+    std::cout << "Press P to save current frame to project folder.\n";
     std::cout << "Current shader: " << shaders[activeShader].name << "\n";
 
     for (const auto& shader : shaders)
@@ -397,7 +446,7 @@ int main(int argc, char** argv)
     int width,height,channels;
 
     stbi_set_flip_vertically_on_load(true);
-    unsigned char* data = stbi_load("profile.png",&width,&height,&channels,0);
+    unsigned char* data = stbi_load("a6d288a49638ed480a7854f3ca3205a5.jpg",&width,&height,&channels,0);
 
     if(!data)
     {
@@ -419,6 +468,8 @@ int main(int argc, char** argv)
 
     stbi_image_free(data);
 
+    bool saveKeyWasDown = false;
+    int captureIndex = 1;
     while(!glfwWindowShouldClose(window))
     {
         glfwPollEvents();
@@ -438,6 +489,27 @@ int main(int argc, char** argv)
 
         glBindVertexArray(vao);
         glDrawArrays(GL_TRIANGLES,0,6);
+
+        int saveKeyDown = glfwGetKey(window, GLFW_KEY_P) == GLFW_PRESS;
+        if (saveKeyDown && !saveKeyWasDown)
+        {
+            int fbWidth = 0;
+            int fbHeight = 0;
+            glfwGetFramebufferSize(window, &fbWidth, &fbHeight);
+
+            std::string fileName = "pixelart_capture_" + std::to_string(captureIndex) + ".png";
+            bool ok = saveCurrentFramePNG(fileName, fbWidth, fbHeight, captureIndex);
+            captureIndex++;
+            if (ok)
+            {
+                std::cout << "Saved frame to " << fileName << "\n";
+            }
+            else
+            {
+                std::cout << "Failed to save frame\n";
+            }
+        }
+        saveKeyWasDown = saveKeyDown;
 
         glfwSwapBuffers(window);
     }

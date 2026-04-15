@@ -70,6 +70,13 @@ uniform float BlackInk_OutlineThreshold <
     ui_tooltip = "Sensitivity of silhouette, crease, and contact-line extraction.";
 > = 0.10;
 
+uniform int BlackInk_GradientMode <
+    ui_category = "Black Ink";
+    ui_type = "combo";
+    ui_items = "Central Difference\0Sobel\0Scharr\0";
+    ui_tooltip = "Gradient kernel used by pseudo normals and luma-edge extraction. Sobel is the default balanced option, Scharr is slightly stronger and more rotation-stable.";
+> = 1;
+
 uniform float BlackInk_ToneStrength <
     ui_category = "Black Ink";
     ui_type = "drag";
@@ -82,7 +89,7 @@ uniform float BlackInk_DotBoost <
     ui_type = "drag";
     ui_min = 0.5; ui_max = 2.0;
     ui_tooltip = "Extra emphasis for dot screentone before hatch takeover.";
-> = 1.65;
+> = 1.15;
 
 uniform float BlackInk_DarkOutlineAssist <
     ui_category = "Black Ink";
@@ -134,13 +141,64 @@ float3 BlackInk_SampleCrossBlur(float2 uv, float2 texel, float radius)
     return color / 12.0;
 }
 
+float BlackInk_SampleBlurredLuma(float2 uv, float2 texel, float radius)
+{
+    return BlackInk_Luminance(BlackInk_SampleCrossBlur(uv, texel, radius));
+}
+
+float2 BlackInk_EvalCentralGradientField(float2 uv, float2 texel, float radius)
+{
+    float2 offset = texel * radius;
+    float lL = BlackInk_SampleBlurredLuma(uv - float2(offset.x, 0.0), texel, radius);
+    float lR = BlackInk_SampleBlurredLuma(uv + float2(offset.x, 0.0), texel, radius);
+    float lU = BlackInk_SampleBlurredLuma(uv + float2(0.0, offset.y), texel, radius);
+    float lD = BlackInk_SampleBlurredLuma(uv - float2(0.0, offset.y), texel, radius);
+    return float2(lR - lL, lU - lD);
+}
+
+float2 BlackInk_EvalSobelGradientField(float2 uv, float2 texel, float radius)
+{
+    float2 offset = texel * radius;
+
+    float tl = BlackInk_SampleBlurredLuma(uv + float2(-offset.x, offset.y), texel, radius);
+    float tc = BlackInk_SampleBlurredLuma(uv + float2(0.0, offset.y), texel, radius);
+    float tr = BlackInk_SampleBlurredLuma(uv + float2(offset.x, offset.y), texel, radius);
+    float ml = BlackInk_SampleBlurredLuma(uv - float2(offset.x, 0.0), texel, radius);
+    float mr = BlackInk_SampleBlurredLuma(uv + float2(offset.x, 0.0), texel, radius);
+    float bl = BlackInk_SampleBlurredLuma(uv - float2(offset.x, offset.y), texel, radius);
+    float bc = BlackInk_SampleBlurredLuma(uv - float2(0.0, offset.y), texel, radius);
+    float br = BlackInk_SampleBlurredLuma(uv + float2(offset.x, -offset.y), texel, radius);
+
+    float gx = (tr + 2.0 * mr + br) - (tl + 2.0 * ml + bl);
+    float gy = (tl + 2.0 * tc + tr) - (bl + 2.0 * bc + br);
+    return float2(gx, gy) * 0.25;
+}
+
+float2 BlackInk_EvalScharrGradientField(float2 uv, float2 texel, float radius)
+{
+    float2 offset = texel * radius;
+
+    float tl = BlackInk_SampleBlurredLuma(uv + float2(-offset.x, offset.y), texel, radius);
+    float tc = BlackInk_SampleBlurredLuma(uv + float2(0.0, offset.y), texel, radius);
+    float tr = BlackInk_SampleBlurredLuma(uv + float2(offset.x, offset.y), texel, radius);
+    float ml = BlackInk_SampleBlurredLuma(uv - float2(offset.x, 0.0), texel, radius);
+    float mr = BlackInk_SampleBlurredLuma(uv + float2(offset.x, 0.0), texel, radius);
+    float bl = BlackInk_SampleBlurredLuma(uv - float2(offset.x, offset.y), texel, radius);
+    float bc = BlackInk_SampleBlurredLuma(uv - float2(0.0, offset.y), texel, radius);
+    float br = BlackInk_SampleBlurredLuma(uv + float2(offset.x, -offset.y), texel, radius);
+
+    float gx = (3.0 * tr + 10.0 * mr + 3.0 * br) - (3.0 * tl + 10.0 * ml + 3.0 * bl);
+    float gy = (3.0 * tl + 10.0 * tc + 3.0 * tr) - (3.0 * bl + 10.0 * bc + 3.0 * br);
+    return float2(gx, gy) * (1.0 / 16.0);
+}
+
 float2 BlackInk_EvalGradientField(float2 uv, float2 texel, float radius)
 {
-    float lL = BlackInk_Luminance(BlackInk_SampleCrossBlur(uv - float2(texel.x * radius, 0.0), texel, radius));
-    float lR = BlackInk_Luminance(BlackInk_SampleCrossBlur(uv + float2(texel.x * radius, 0.0), texel, radius));
-    float lU = BlackInk_Luminance(BlackInk_SampleCrossBlur(uv + float2(0.0, texel.y * radius), texel, radius));
-    float lD = BlackInk_Luminance(BlackInk_SampleCrossBlur(uv - float2(0.0, texel.y * radius), texel, radius));
-    return float2(lR - lL, lU - lD);
+    if (BlackInk_GradientMode == 1)
+        return BlackInk_EvalSobelGradientField(uv, texel, radius);
+    if (BlackInk_GradientMode == 2)
+        return BlackInk_EvalScharrGradientField(uv, texel, radius);
+    return BlackInk_EvalCentralGradientField(uv, texel, radius);
 }
 
 float3 BlackInk_EvalPseudoNormal(float2 gradientField)
@@ -172,7 +230,7 @@ float BlackInk_EvalViewSilhouette(
     float darkAssist
 )
 {
-    float outlineThreshold = BlackInk_OutlineThreshold * lerp(1.0, 0.72, darkAssist);
+    float outlineThreshold = BlackInk_OutlineThreshold * lerp(1.0, 0.82, darkAssist);
     float alphaEdge = smoothstep(0.01, 0.16, length(alphaGradient));
     float alphaShell = smoothstep(0.03, 0.34, alphaRange) * smoothstep(0.01, 0.995, alphaValue);
     float lumaEdge = smoothstep(outlineThreshold * 0.48, outlineThreshold * 1.45, length(lumaGradient));
@@ -225,7 +283,7 @@ float BlackInk_EvalDotTone(float2 pixelPos, float density)
     float2 rotated = mul(BlackInk_Rotation2D(0.48), pixelPos);
     float2 cell = frac(rotated / 7.0) - 0.5;
     float dist = length(cell);
-    float radius = lerp(0.06, 0.38, density);
+    float radius = lerp(0.06, 0.58, density);
     return 1.0 - smoothstep(radius, radius + 0.05, dist);
 }
 

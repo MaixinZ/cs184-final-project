@@ -30,3 +30,4 @@ vscode/
 # agent files
 *.agent
 fx/Icon
+report/

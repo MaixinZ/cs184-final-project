@@ -25,18 +25,6 @@ uniform float uRimThreshold;
 uniform float uOutlineThreshold;
 uniform float uFogWeight;
 
-const int kGradientMode = 1; // 0: Central Difference, 1: Sobel, 2: Scharr
-
-float saturate(float x)
-{
-    return clamp(x, 0.0, 1.0);
-}
-
-vec3 saturate(vec3 x)
-{
-    return clamp(x, vec3(0.0), vec3(1.0));
-}
-
 float luminance(vec3 color)
 {
     return dot(color, vec3(0.299, 0.587, 0.114));
@@ -57,61 +45,13 @@ vec3 sampleRegionAverage(vec2 sampleUv, vec2 texel)
     return color / 12.0;
 }
 
-float sampleBlurredLuma(vec2 sampleUv, vec2 texel)
-{
-    return luminance(sampleRegionAverage(sampleUv, texel));
-}
-
-vec2 evalCentralGradient(vec2 sampleUv, vec2 texel)
-{
-    float lL = sampleBlurredLuma(sampleUv - vec2(texel.x, 0.0), texel);
-    float lR = sampleBlurredLuma(sampleUv + vec2(texel.x, 0.0), texel);
-    float lU = sampleBlurredLuma(sampleUv + vec2(0.0, texel.y), texel);
-    float lD = sampleBlurredLuma(sampleUv - vec2(0.0, texel.y), texel);
-    return vec2(lR - lL, lU - lD);
-}
-
-vec2 evalSobelGradient(vec2 sampleUv, vec2 texel)
-{
-    float tl = sampleBlurredLuma(sampleUv + vec2(-texel.x, texel.y), texel);
-    float tc = sampleBlurredLuma(sampleUv + vec2(0.0, texel.y), texel);
-    float tr = sampleBlurredLuma(sampleUv + texel, texel);
-    float ml = sampleBlurredLuma(sampleUv - vec2(texel.x, 0.0), texel);
-    float mr = sampleBlurredLuma(sampleUv + vec2(texel.x, 0.0), texel);
-    float bl = sampleBlurredLuma(sampleUv - texel, texel);
-    float bc = sampleBlurredLuma(sampleUv - vec2(0.0, texel.y), texel);
-    float br = sampleBlurredLuma(sampleUv + vec2(texel.x, -texel.y), texel);
-
-    float gx = (tr + 2.0 * mr + br) - (tl + 2.0 * ml + bl);
-    float gy = (tl + 2.0 * tc + tr) - (bl + 2.0 * bc + br);
-    return vec2(gx, gy) * 0.25;
-}
-
-vec2 evalScharrGradient(vec2 sampleUv, vec2 texel)
-{
-    float tl = sampleBlurredLuma(sampleUv + vec2(-texel.x, texel.y), texel);
-    float tc = sampleBlurredLuma(sampleUv + vec2(0.0, texel.y), texel);
-    float tr = sampleBlurredLuma(sampleUv + texel, texel);
-    float ml = sampleBlurredLuma(sampleUv - vec2(texel.x, 0.0), texel);
-    float mr = sampleBlurredLuma(sampleUv + vec2(texel.x, 0.0), texel);
-    float bl = sampleBlurredLuma(sampleUv - texel, texel);
-    float bc = sampleBlurredLuma(sampleUv - vec2(0.0, texel.y), texel);
-    float br = sampleBlurredLuma(sampleUv + vec2(texel.x, -texel.y), texel);
-
-    float gx = (3.0 * tr + 10.0 * mr + 3.0 * br) - (3.0 * tl + 10.0 * ml + 3.0 * bl);
-    float gy = (3.0 * tl + 10.0 * tc + 3.0 * tr) - (3.0 * bl + 10.0 * bc + 3.0 * br);
-    return vec2(gx, gy) * (1.0 / 16.0);
-}
-
 vec2 evalLumaGradient(vec2 sampleUv, vec2 texel)
 {
-    if (kGradientMode == 1) {
-        return evalSobelGradient(sampleUv, texel);
-    }
-    if (kGradientMode == 2) {
-        return evalScharrGradient(sampleUv, texel);
-    }
-    return evalCentralGradient(sampleUv, texel);
+    float lL = luminance(sampleRegionAverage(sampleUv - vec2(texel.x, 0.0), texel));
+    float lR = luminance(sampleRegionAverage(sampleUv + vec2(texel.x, 0.0), texel));
+    float lU = luminance(sampleRegionAverage(sampleUv + vec2(0.0, texel.y), texel));
+    float lD = luminance(sampleRegionAverage(sampleUv - vec2(0.0, texel.y), texel));
+    return vec2(lR - lL, lU - lD);
 }
 
 vec3 evalPseudoNormal(vec2 lumaGradient)
@@ -153,7 +93,7 @@ vec3 evalCelDiffuse(vec3 baseColor, float shadeSignal)
 float evalStylizedShadow(float shadeSignal, float cavityMask)
 {
     float broadShadow = 1.0 - evalCelBand(shadeSignal, uShadowThreshold, uShadowSoftness);
-    return saturate(max(broadShadow * 0.88, cavityMask * 0.55));
+    return clamp(max(broadShadow * 0.88, cavityMask * 0.55), 0.0, 1.0);
 }
 
 vec3 evalAmbientHemisphere(vec3 normalValue, vec3 baseColor, float aoMask)
@@ -192,7 +132,12 @@ float evalRimMask(vec3 normalValue, vec3 viewDirValue, float edgeMask, float sha
     return rim;
 }
 
-float evalOutline(vec2 lumaGradient, vec3 baseColor, vec3 smoothColor)
+vec3 evalRimLight(vec3 normalValue, vec3 viewDirValue, float edgeMask, float shadowMask)
+{
+    return uRimColor * evalRimMask(normalValue, viewDirValue, edgeMask, shadowMask) * 0.42;
+}
+
+float evalOutlineFromDepthNormal(vec2 lumaGradient, vec3 baseColor, vec3 smoothColor)
 {
     float lumaEdge = length(lumaGradient);
     float chromaEdge = length(baseColor - smoothColor);
@@ -204,10 +149,10 @@ float evalFogFactor(float detailMask, vec2 sampleUv)
 {
     float farProxy = smoothstep(0.18, 0.82, 1.0 - detailMask);
     float skyBias = smoothstep(0.20, 0.92, sampleUv.y);
-    return saturate((farProxy * 0.78 + skyBias * 0.22) * uFogWeight);
+    return clamp((farProxy * 0.78 + skyBias * 0.22) * uFogWeight, 0.0, 1.0);
 }
 
-vec3 applyAtmosphere(vec3 colorValue, float fogFactor)
+vec3 applyAtmosphericPerspective(vec3 colorValue, float fogFactor)
 {
     vec3 foggedColor = mix(colorValue, uAtmosphereColor, fogFactor * 0.38);
     float foggedLuma = luminance(foggedColor);
@@ -220,8 +165,8 @@ vec3 applyBandPreservingTonemap(vec3 colorValue)
     float peak = max(max(colorValue.r, colorValue.g), colorValue.b);
     float shoulder = max(peak - 1.0, 0.0);
     colorValue /= 1.0 + shoulder * 0.65;
-    colorValue = pow(max(colorValue, vec3(0.0)), vec3(0.96));
-    return saturate(colorValue);
+    colorValue = pow(max(colorValue, 0.0), vec3(0.96));
+    return clamp(colorValue, 0.0, 1.0);
 }
 
 vec3 bandDebugColor(float bandIndex)
@@ -241,8 +186,8 @@ vec3 bandDebugColor(float bandIndex)
 void main()
 {
     vec2 texel = 1.0 / vec2(textureSize(tex, 0));
-    vec3 baseColor = texture(tex, uv).rgb;
 
+    vec3 baseColor = texture(tex, uv).rgb;
     if (uShadeEnabled == 0) {
         FragColor = vec4(baseColor, 1.0);
         return;
@@ -257,9 +202,9 @@ void main()
     vec3 viewDirValue = vec3(0.0, 0.0, 1.0);
 
     float ndotl = max(dot(pseudoNormal, lightDirValue), 0.0);
-    float detailMask = saturate(length(baseColor - smoothColor) * 1.8 + length(lumaGradient) * 2.4);
+    float detailMask = clamp(length(baseColor - smoothColor) * 1.8 + length(lumaGradient) * 2.4, 0.0, 1.0);
     float cavityMask = smoothstep(0.18, 0.65, detailMask) * (1.0 - smoothstep(0.58, 0.92, smoothLuma));
-    float shadeSignal = saturate(mix(smoothLuma, ndotl, 0.62) + 0.10);
+    float shadeSignal = clamp(mix(smoothLuma, ndotl, 0.62) + 0.10, 0.0, 1.0);
     float bandIndex = evalBandIndex(shadeSignal);
 
     vec3 celDiffuse = evalCelDiffuse(smoothColor, shadeSignal);
@@ -267,9 +212,8 @@ void main()
     vec3 ambientTerm = evalAmbientHemisphere(pseudoNormal, smoothColor, cavityMask);
     float specMask = smoothstep(0.24, 0.82, smoothLuma) * (1.0 - detailMask * 0.30);
     vec3 specularTerm = evalStylizedSpecular(pseudoNormal, lightDirValue, viewDirValue, shadeSignal, specMask);
-    float outlineMask = evalOutline(lumaGradient, baseColor, smoothColor);
+    float outlineMask = evalOutlineFromDepthNormal(lumaGradient, baseColor, smoothColor);
     float rimMask = evalRimMask(pseudoNormal, viewDirValue, outlineMask, shadowMask);
-
     vec3 rimTerm = uRimColor * rimMask * 0.42;
     float fogFactor = evalFogFactor(detailMask, uv);
 
@@ -279,7 +223,7 @@ void main()
     vec3 localOutlineColor = mix(baseColor * 0.28, uOutlineColor, 0.75);
     float outlineBlend = outlineMask * (1.0 - fogFactor * 0.65);
     litColor = mix(litColor, localOutlineColor, outlineBlend * 0.88);
-    litColor = applyAtmosphere(litColor, fogFactor);
+    litColor = applyAtmosphericPerspective(litColor, fogFactor);
     litColor = applyBandPreservingTonemap(litColor);
 
     if (uDebugMode == 1) {

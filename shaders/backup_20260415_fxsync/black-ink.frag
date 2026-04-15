@@ -25,22 +25,6 @@ uniform float uRimThreshold;
 uniform float uOutlineThreshold;
 uniform float uFogWeight;
 
-const int kGradientMode = 1; // 0: Central Difference, 1: Sobel, 2: Scharr
-const float kToneStrength = 1.0;
-const float kDotBoost = 1.15;
-const float kDarkOutlineAssist = 0.38;
-const float kPaperWhiteness = 0.885;
-
-float saturate(float x)
-{
-    return clamp(x, 0.0, 1.0);
-}
-
-vec3 saturate(vec3 x)
-{
-    return clamp(x, vec3(0.0), vec3(1.0));
-}
-
 float luminance(vec3 color)
 {
     return dot(color, vec3(0.299, 0.587, 0.114));
@@ -77,66 +61,13 @@ vec3 sampleCrossBlur(vec2 sampleUv, vec2 texel, float radius)
     return color / 12.0;
 }
 
-float sampleBlurredLuma(vec2 sampleUv, vec2 texel, float radius)
-{
-    return luminance(sampleCrossBlur(sampleUv, texel, radius));
-}
-
-vec2 evalCentralGradientField(vec2 sampleUv, vec2 texel, float radius)
-{
-    vec2 offset = texel * radius;
-    float lL = sampleBlurredLuma(sampleUv - vec2(offset.x, 0.0), texel, radius);
-    float lR = sampleBlurredLuma(sampleUv + vec2(offset.x, 0.0), texel, radius);
-    float lU = sampleBlurredLuma(sampleUv + vec2(0.0, offset.y), texel, radius);
-    float lD = sampleBlurredLuma(sampleUv - vec2(0.0, offset.y), texel, radius);
-    return vec2(lR - lL, lU - lD);
-}
-
-vec2 evalSobelGradientField(vec2 sampleUv, vec2 texel, float radius)
-{
-    vec2 offset = texel * radius;
-
-    float tl = sampleBlurredLuma(sampleUv + vec2(-offset.x, offset.y), texel, radius);
-    float tc = sampleBlurredLuma(sampleUv + vec2(0.0, offset.y), texel, radius);
-    float tr = sampleBlurredLuma(sampleUv + vec2(offset.x, offset.y), texel, radius);
-    float ml = sampleBlurredLuma(sampleUv - vec2(offset.x, 0.0), texel, radius);
-    float mr = sampleBlurredLuma(sampleUv + vec2(offset.x, 0.0), texel, radius);
-    float bl = sampleBlurredLuma(sampleUv - vec2(offset.x, offset.y), texel, radius);
-    float bc = sampleBlurredLuma(sampleUv - vec2(0.0, offset.y), texel, radius);
-    float br = sampleBlurredLuma(sampleUv + vec2(offset.x, -offset.y), texel, radius);
-
-    float gx = (tr + 2.0 * mr + br) - (tl + 2.0 * ml + bl);
-    float gy = (tl + 2.0 * tc + tr) - (bl + 2.0 * bc + br);
-    return vec2(gx, gy) * 0.25;
-}
-
-vec2 evalScharrGradientField(vec2 sampleUv, vec2 texel, float radius)
-{
-    vec2 offset = texel * radius;
-
-    float tl = sampleBlurredLuma(sampleUv + vec2(-offset.x, offset.y), texel, radius);
-    float tc = sampleBlurredLuma(sampleUv + vec2(0.0, offset.y), texel, radius);
-    float tr = sampleBlurredLuma(sampleUv + vec2(offset.x, offset.y), texel, radius);
-    float ml = sampleBlurredLuma(sampleUv - vec2(offset.x, 0.0), texel, radius);
-    float mr = sampleBlurredLuma(sampleUv + vec2(offset.x, 0.0), texel, radius);
-    float bl = sampleBlurredLuma(sampleUv - vec2(offset.x, offset.y), texel, radius);
-    float bc = sampleBlurredLuma(sampleUv - vec2(0.0, offset.y), texel, radius);
-    float br = sampleBlurredLuma(sampleUv + vec2(offset.x, -offset.y), texel, radius);
-
-    float gx = (3.0 * tr + 10.0 * mr + 3.0 * br) - (3.0 * tl + 10.0 * ml + 3.0 * bl);
-    float gy = (3.0 * tl + 10.0 * tc + 3.0 * tr) - (3.0 * bl + 10.0 * bc + 3.0 * br);
-    return vec2(gx, gy) * (1.0 / 16.0);
-}
-
 vec2 evalGradientField(vec2 sampleUv, vec2 texel, float radius)
 {
-    if (kGradientMode == 1) {
-        return evalSobelGradientField(sampleUv, texel, radius);
-    }
-    if (kGradientMode == 2) {
-        return evalScharrGradientField(sampleUv, texel, radius);
-    }
-    return evalCentralGradientField(sampleUv, texel, radius);
+    float lL = luminance(sampleCrossBlur(sampleUv - vec2(texel.x * radius, 0.0), texel, radius));
+    float lR = luminance(sampleCrossBlur(sampleUv + vec2(texel.x * radius, 0.0), texel, radius));
+    float lU = luminance(sampleCrossBlur(sampleUv + vec2(0.0, texel.y * radius), texel, radius));
+    float lD = luminance(sampleCrossBlur(sampleUv - vec2(0.0, texel.y * radius), texel, radius));
+    return vec2(lR - lL, lU - lD);
 }
 
 vec3 evalPseudoNormal(vec2 gradientField)
@@ -149,49 +80,30 @@ float evalLightFacingness(vec3 pseudoNormal, vec3 lightDirValue, float lumaValue
     float ndotl = max(dot(pseudoNormal, lightDirValue), 0.0);
     float broad = smoothstep(uShadowThreshold, uMidThreshold + 0.05, ndotl);
     float highlight = smoothstep(uMidThreshold, uHighlightThreshold + 0.05, ndotl);
-    return saturate(mix(lumaValue, broad, 0.58) + highlight * 0.10);
+    return clamp(mix(lumaValue, broad, 0.58) + highlight * 0.10, 0.0, 1.0);
 }
 
-float evalAlphaReliability(float alphaValue, float alphaRange, vec2 alphaGradient)
+float evalViewSilhouette(float alphaValue, float alphaRange, vec2 alphaGradient, vec2 lumaGradient, float broadContrast)
 {
-    float deviation = abs(alphaValue - 1.0);
-    return saturate(alphaRange * 8.0 + length(alphaGradient) * 6.0 + deviation * 3.0);
-}
-
-float evalViewSilhouette(
-    float alphaValue,
-    float alphaRange,
-    vec2 alphaGradient,
-    vec2 lumaGradient,
-    float broadContrast,
-    float alphaReliability,
-    float darkAssist
-)
-{
-    float outlineThreshold = uOutlineThreshold * mix(1.0, 0.82, darkAssist);
     float alphaEdge = smoothstep(0.01, 0.16, length(alphaGradient));
     float alphaShell = smoothstep(0.03, 0.34, alphaRange) * smoothstep(0.01, 0.995, alphaValue);
-    float lumaEdge = smoothstep(outlineThreshold * 0.48, outlineThreshold * 1.45, length(lumaGradient));
-    float broadEdge = smoothstep(0.03, 0.16, broadContrast + darkAssist * 0.03);
-    float alphaCue = max(alphaEdge, alphaShell) * mix(0.15, 0.95, alphaReliability);
-    float lumaCue = max(lumaEdge * mix(0.78, 0.96, darkAssist), broadEdge * mix(0.48, 0.66, darkAssist));
-    return saturate(max(alphaCue, lumaCue));
+    float lumaEdge = smoothstep(uOutlineThreshold * 0.55, uOutlineThreshold * 1.65, length(lumaGradient));
+    float broadEdge = smoothstep(0.04, 0.18, broadContrast);
+    return clamp(max(max(alphaEdge, alphaShell) * 0.95, max(lumaEdge * 0.78, broadEdge * 0.48)), 0.0, 1.0);
 }
 
-float evalCreaseLine(vec2 lumaGradient, vec3 baseColor, vec3 smallBlur, float detailMask, float darkAssist)
+float evalCreaseLine(vec2 lumaGradient, vec3 baseColor, vec3 smallBlur, float detailMask)
 {
-    float outlineThreshold = uOutlineThreshold * mix(1.0, 0.78, darkAssist);
-    float lumaEdge = smoothstep(outlineThreshold * 0.44, outlineThreshold * 1.55, length(lumaGradient));
+    float lumaEdge = smoothstep(uOutlineThreshold * 0.50, uOutlineThreshold * 1.80, length(lumaGradient));
     float chromaEdge = smoothstep(0.03, 0.18, length(baseColor - smallBlur));
-    return saturate((lumaEdge * mix(0.72, 0.88, darkAssist) + chromaEdge * 0.28) * mix(0.52, 1.0, detailMask));
+    return clamp((lumaEdge * 0.72 + chromaEdge * 0.28) * mix(0.52, 1.0, detailMask), 0.0, 1.0);
 }
 
-float evalContactEdge(float cavityMask, vec2 lumaGradient, float shadowSignal, float darkAssist)
+float evalContactEdge(float cavityMask, vec2 lumaGradient, float shadowSignal)
 {
     float grounded = smoothstep(0.10, 0.34, cavityMask);
-    float outlineThreshold = uOutlineThreshold * mix(1.0, 0.76, darkAssist);
-    float compression = smoothstep(outlineThreshold * 0.38, outlineThreshold * 1.05, length(lumaGradient));
-    return saturate(grounded * compression * mix(0.45, 1.0, shadowSignal));
+    float compression = smoothstep(uOutlineThreshold * 0.45, uOutlineThreshold * 1.20, length(lumaGradient));
+    return clamp(grounded * compression * mix(0.45, 1.0, shadowSignal), 0.0, 1.0);
 }
 
 float evalLinePriority(float silhouetteMask, float creaseMask, float contactMask, float detailMask, float depthProxy)
@@ -199,7 +111,7 @@ float evalLinePriority(float silhouetteMask, float creaseMask, float contactMask
     float priority = silhouetteMask * 1.00 + creaseMask * 0.58 + contactMask * 0.82;
     priority *= mix(1.0, 0.68, depthProxy);
     priority *= mix(0.62, 1.0, detailMask);
-    return saturate(priority);
+    return clamp(priority, 0.0, 1.0);
 }
 
 float classifyShadowRegion(float lightFacingness, float lumaValue, float cavityMask)
@@ -207,7 +119,7 @@ float classifyShadowRegion(float lightFacingness, float lumaValue, float cavityM
     float shadowSignal = (1.0 - lightFacingness) * 0.68;
     shadowSignal += cavityMask * 0.34;
     shadowSignal += (1.0 - lumaValue) * 0.16;
-    return saturate(shadowSignal);
+    return clamp(shadowSignal, 0.0, 1.0);
 }
 
 float evalBlackFillMask(float shadowClass, float contactMask, float joinedDarkness)
@@ -221,7 +133,7 @@ float evalDotTone(vec2 pixelPos, float density)
     vec2 rotated = rotation2D(0.48) * pixelPos;
     vec2 cell = fract(rotated / 7.0) - 0.5;
     float dist = length(cell);
-    float radius = mix(0.06, 0.58, density);
+    float radius = mix(0.06, 0.38, density);
     return 1.0 - smoothstep(radius, radius + 0.05, dist);
 }
 
@@ -253,20 +165,19 @@ float evalScreentoneMask(
     float mildTone = smoothstep(0.22, 0.44, shadowClass) * (1.0 - smoothstep(0.58, 0.74, shadowClass));
     float denseTone = smoothstep(0.46, 0.70, shadowClass) * (1.0 - blackFillMask);
 
-    float dotDensity = saturate(shadowClass * 1.10);
-    float hatchDensity = saturate((shadowClass - 0.20) * 1.35);
-    float crossDensity = saturate((shadowClass - 0.48) * 2.00);
+    float dotDensity = clamp(shadowClass * 1.10, 0.0, 1.0);
+    float hatchDensity = clamp((shadowClass - 0.20) * 1.35, 0.0, 1.0);
+    float crossDensity = clamp((shadowClass - 0.48) * 2.00, 0.0, 1.0);
 
     float dots = evalDotTone(pixelPos, dotDensity);
-    dots = saturate(dots * kDotBoost);
     float hatch = evalHatchPattern(pixelPos, hatchDensity, hatchAngle);
     float cross = evalCrossHatchPattern(pixelPos, crossDensity, hatchAngle);
 
     hatchDirectionDebug = fract(hatchAngle / 6.2831853);
 
-    float tone = mix(dots * mildTone, hatch * denseTone, saturate(materialStyle * 0.92));
+    float tone = mix(dots * mildTone, hatch * denseTone, materialStyle);
     tone = max(tone, cross * denseTone * smoothstep(0.62, 0.82, shadowClass));
-    return saturate(tone * (1.0 - blackFillMask) * kToneStrength);
+    return clamp(tone * (1.0 - blackFillMask), 0.0, 1.0);
 }
 
 vec3 compositeInkLayers(
@@ -284,33 +195,33 @@ vec3 compositeInkLayers(
     float creaseInk = smoothstep(0.12, 0.66, creaseMask) * mix(0.42, 0.84, linePriority);
     float contactInk = smoothstep(0.10, 0.58, contactMask) * mix(0.72, 0.96, linePriority);
 
-    float lineInk = saturate(max(max(silhouetteInk, creaseInk), contactInk));
+    float lineInk = clamp(max(max(silhouetteInk, creaseInk), contactInk), 0.0, 1.0);
     float blackCoverage = smoothstep(0.36, 0.82, blackFillMask * (1.0 - reserveWhite));
     float toneCoverage = smoothstep(0.18, 0.70, screentoneMask) * 0.84;
     float coverage = max(blackCoverage, max(toneCoverage, lineInk));
     coverage = max(coverage, silhouetteMask * 0.90);
-    inkCoverage = saturate(coverage);
+    inkCoverage = clamp(coverage, 0.0, 1.0);
 
-    return mix(vec3(1.0), vec3(0.0), inkCoverage);
+    vec3 paper = vec3(1.0);
+    return mix(paper, vec3(0.0), inkCoverage);
 }
 
 vec3 applyPaperAndPrintFinish(vec3 inkColor, float inkCoverage, vec2 pixelPos)
 {
     float paperNoise = fract(sin(dot(pixelPos * vec2(0.91, 1.07), vec2(12.9898, 78.233))) * 43758.5453);
-    float paperTone = kPaperWhiteness + paperNoise * 0.012;
+    float paperTone = 0.985 + paperNoise * 0.012;
     vec3 paperTint = vec3(paperTone);
 
     vec3 result = min(inkColor, paperTint);
     float inkSpread = smoothstep(0.58, 0.95, inkCoverage) * 0.08;
     result = mix(result, vec3(0.0), inkSpread);
-    return saturate(result);
+    return clamp(result, 0.0, 1.0);
 }
 
 void main()
 {
-    vec2 texSize = vec2(textureSize(tex, 0));
-    vec2 texel = 1.0 / texSize;
-    vec2 pixelPos = uv * texSize;
+    vec2 texel = 1.0 / vec2(textureSize(tex, 0));
+    vec2 pixelPos = uv * vec2(textureSize(tex, 0));
 
     vec4 baseSample = texture(tex, uv);
     vec3 baseColor = baseSample.rgb;
@@ -346,18 +257,16 @@ void main()
     vec3 pseudoNormal = evalPseudoNormal(lumaGradient);
     vec3 lightDirValue = normalize(uLightDir);
 
-    float detailMask = saturate(length(baseColor - mediumBlur) * 2.0 + length(lumaGradient) * 2.6);
+    float detailMask = clamp(length(baseColor - mediumBlur) * 2.0 + length(lumaGradient) * 2.6, 0.0, 1.0);
     float depthProxy = 1.0 - smoothstep(0.10, 0.78, detailMask);
     float cavityMask = smoothstep(0.05, 0.26, max(mediumLuma - lumaValue, 0.0) + max(largeLuma - mediumLuma, 0.0));
     float broadContrast = max(abs(lumaValue - largeLuma), length(baseColor - mediumBlur) * 0.70);
-    float alphaReliability = evalAlphaReliability(alphaValue, alphaRange, alphaGradient);
-    float darkAssist = (1.0 - smoothstep(0.16, 0.44, smallLuma)) * kDarkOutlineAssist;
 
     float lightFacingness = evalLightFacingness(pseudoNormal, lightDirValue, smallLuma);
-    float silhouetteMask = evalViewSilhouette(alphaValue, alphaRange, alphaGradient, lumaGradient, broadContrast, alphaReliability, darkAssist);
-    float creaseMask = evalCreaseLine(lumaGradient, baseColor, smallBlur, detailMask, darkAssist);
+    float silhouetteMask = evalViewSilhouette(alphaValue, alphaRange, alphaGradient, lumaGradient, broadContrast);
+    float creaseMask = evalCreaseLine(lumaGradient, baseColor, smallBlur, detailMask);
     float shadowClass = classifyShadowRegion(lightFacingness, lumaValue, cavityMask);
-    float contactMask = evalContactEdge(cavityMask, lumaGradient, shadowClass, darkAssist);
+    float contactMask = evalContactEdge(cavityMask, lumaGradient, shadowClass);
     float joinedDarkness = smoothstep(0.08, 0.38, max(largeLuma - lumaValue, 0.0));
     float blackFillMask = evalBlackFillMask(shadowClass, contactMask, joinedDarkness);
 
@@ -418,7 +327,7 @@ void main()
         return;
     }
     if (uDebugMode == 18) {
-        FragColor = vec4(vec3(hatchDirectionDebug), 1.0);
+        FragColor = vec4(vec3(hatchDirectionDebug, hatchDirectionDebug, hatchDirectionDebug), 1.0);
         return;
     }
     if (uDebugMode == 19) {

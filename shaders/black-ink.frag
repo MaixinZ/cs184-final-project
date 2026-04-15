@@ -60,6 +60,34 @@ mat2 rotation2D(float angle)
     return mat2(c, -s, s, c);
 }
 
+float hash12(vec2 p)
+{
+    vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+    p3 += dot(p3, p3.yzx + 33.33);
+    return fract((p3.x + p3.y) * p3.z);
+}
+
+vec2 hash22(vec2 p)
+{
+    vec3 p3 = fract(vec3(p.xyx) * vec3(0.1031, 0.1030, 0.0973));
+    p3 += dot(p3, p3.yzx + 33.33);
+    return fract((p3.xx + p3.yz) * p3.zy);
+}
+
+float valueNoise(vec2 p)
+{
+    vec2 i = floor(p);
+    vec2 f = fract(p);
+    vec2 u = f * f * (3.0 - 2.0 * f);
+
+    float a = hash12(i);
+    float b = hash12(i + vec2(1.0, 0.0));
+    float c = hash12(i + vec2(0.0, 1.0));
+    float d = hash12(i + vec2(1.0, 1.0));
+
+    return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+}
+
 vec3 sampleCrossBlur(vec2 sampleUv, vec2 texel, float radius)
 {
     vec2 dx = vec2(texel.x * radius, 0.0);
@@ -216,13 +244,70 @@ float evalBlackFillMask(float shadowClass, float contactMask, float joinedDarkne
     return smoothstep(0.58, 0.82, blackSeed);
 }
 
-float evalDotTone(vec2 pixelPos, float density)
+float evalPaperGrain(vec2 pixelPos, float angle)
 {
+    vec2 grainUv = rotation2D(angle * 0.18 + 0.31) * (pixelPos * vec2(0.18, 0.24));
+    float coarse = valueNoise(grainUv);
+    float mid = valueNoise(grainUv * 2.1 + vec2(13.7, 5.9));
+    float fine = valueNoise(grainUv * 4.3 + vec2(21.1, 17.3));
+    return saturate(coarse * 0.50 + mid * 0.34 + fine * 0.16);
+}
+
+float evalDirectionalSmudge(vec2 pixelPos, float angle)
+{
+    vec2 smudgeUv = rotation2D(angle) * pixelPos;
+    float longStroke = valueNoise(smudgeUv * vec2(0.08, 0.34) + vec2(9.7, 3.1));
+    float shortStroke = valueNoise(smudgeUv * vec2(0.17, 0.78) + vec2(17.3, 11.2));
+    return saturate(longStroke * 0.62 + shortStroke * 0.38);
+}
+
+float evalMicroDotField(vec2 cell, vec2 center, float radius, float angle, float smudge, float seed)
+{
+    vec2 q = rotation2D(angle) * (cell - center);
+    q.x /= mix(1.0, 1.75, smudge);
+    q.y /= mix(1.0, 0.72, smudge);
+
+    float edgeWarp = mix(0.84, 1.18, valueNoise(q * 5.5 + vec2(seed * 9.7, seed * 15.1)));
+    float radial = dot(q, q) / max(radius * radius, 1e-4);
+    radial *= edgeWarp;
+
+    return exp(-radial * 1.6);
+}
+
+float evalDotTone(vec2 pixelPos, float density, float smudgeAngle)
+{
+    float spacing = mix(3.8, 4.2, density);
     vec2 rotated = rotation2D(0.48) * pixelPos;
-    vec2 cell = fract(rotated / 4.0) - 0.5;
-    float dist = length(cell);
-    float radius = mix(0.23, 0.88, density);
-    return 1.0 - smoothstep(radius, radius + 0.05, dist);
+    vec2 grid = rotated / spacing;
+    vec2 cellId = floor(grid);
+    vec2 cell = fract(grid) - 0.5;
+
+    float seed0 = hash12(cellId + vec2(1.3, 2.1));
+    float seed1 = hash12(cellId + vec2(4.7, 0.9));
+    float seed2 = hash12(cellId + vec2(8.2, 6.4));
+
+    vec2 center0 = (hash22(cellId + vec2(1.7, 3.2)) - 0.5) * vec2(0.62, 0.34);
+    vec2 center1 = (hash22(cellId + vec2(5.4, 1.6)) - 0.5) * vec2(0.56, 0.30);
+    vec2 center2 = (hash22(cellId + vec2(9.1, 7.5)) - 0.5) * vec2(0.48, 0.26);
+
+    float smudge = mix(0.46, 0.82, density);
+    float localAngle = smudgeAngle + mix(-0.35, 0.35, hash12(cellId + vec2(2.9, 4.4)));
+    float baseRadius = mix(0.25, 0.42, density);
+
+    float field = 0.0;
+    field += evalMicroDotField(cell, center0, baseRadius * mix(0.90, 1.20, seed0), localAngle, smudge, seed0);
+    field += evalMicroDotField(cell, center1, baseRadius * mix(0.70, 1.05, seed1), localAngle, smudge, seed1) * 0.92;
+    field += evalMicroDotField(cell, center2, baseRadius * mix(0.58, 0.92, seed2), localAngle, smudge, seed2) * 0.84;
+
+    float paperNoise = evalPaperGrain(pixelPos, localAngle);
+    float smudgeNoise = evalDirectionalSmudge(pixelPos, smudgeAngle);
+
+    field += (smudgeNoise - 0.5) * mix(0.12, 0.28, density);
+    field -= (1.0 - paperNoise) * mix(0.26, 0.12, density);
+
+    float tone = smoothstep(0.44, 0.82, field);
+    tone *= smoothstep(0.18, 0.88, paperNoise + density * 0.42);
+    return saturate(tone);
 }
 
 float evalHatchPattern(vec2 pixelPos, float density, float angle)
@@ -253,11 +338,11 @@ float evalScreentoneMask(
     float mildTone = smoothstep(0.22, 0.44, shadowClass) * (1.0 - smoothstep(0.58, 0.74, shadowClass));
     float denseTone = smoothstep(0.46, 0.70, shadowClass) * (1.0 - blackFillMask);
 
-    float dotDensity = saturate(shadowClass * 1.10);
+    float dotDensity = saturate(shadowClass * 3.80);
     float hatchDensity = saturate((shadowClass - 0.20) * 1.35);
     float crossDensity = saturate((shadowClass - 0.48) * 2.00);
 
-    float dots = evalDotTone(pixelPos, dotDensity);
+    float dots = evalDotTone(pixelPos, dotDensity, hatchAngle);
     dots = saturate(dots * kDotBoost);
     float hatch = evalHatchPattern(pixelPos, hatchDensity, hatchAngle);
     float cross = evalCrossHatchPattern(pixelPos, crossDensity, hatchAngle);

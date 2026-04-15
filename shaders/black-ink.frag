@@ -79,7 +79,7 @@ vec3 sampleCrossBlur(vec2 sampleUv, vec2 texel, float radius)
 
 float sampleBlurredLuma(vec2 sampleUv, vec2 texel, float radius)
 {
-    return luminance(sampleCrossBlur(sampleUv, texel, radius));
+    return luminance(texture(tex, sampleUv).rgb);
 }
 
 vec2 evalCentralGradientField(vec2 sampleUv, vec2 texel, float radius)
@@ -219,9 +219,9 @@ float evalBlackFillMask(float shadowClass, float contactMask, float joinedDarkne
 float evalDotTone(vec2 pixelPos, float density)
 {
     vec2 rotated = rotation2D(0.48) * pixelPos;
-    vec2 cell = fract(rotated / 7.0) - 0.5;
+    vec2 cell = fract(rotated / 4.0) - 0.5;
     float dist = length(cell);
-    float radius = mix(0.06, 0.58, density);
+    float radius = mix(0.23, 0.88, density);
     return 1.0 - smoothstep(radius, radius + 0.05, dist);
 }
 

@@ -283,7 +283,7 @@ float BlackInk_EvalDotTone(float2 pixelPos, float density)
     float2 rotated = mul(BlackInk_Rotation2D(0.48), pixelPos);
     float2 cell = frac(rotated / 7.0) - 0.5;
     float dist = length(cell);
-    float radius = lerp(0.06, 0.58, density);
+    float radius = lerp(0.19, 0.79, density);
     return 1.0 - smoothstep(radius, radius + 0.05, dist);
 }
 

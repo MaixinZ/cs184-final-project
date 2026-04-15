@@ -2,6 +2,9 @@
 // Source memory:
 // - memory/celluloid.md
 // - shaders/celluloid.frag
+//
+// This version stays framebuffer-only, but improves weak low-saturation and dim scenes
+// by using local contrast assists, adaptive band lifting, and darker-scene outline support.
 
 #include "ReShade.fxh"
 
@@ -93,38 +96,69 @@ uniform float Celluloid_FogWeight <
     ui_tooltip = "Amount of atmospheric flattening in detail-poor regions.";
 > = 0.55;
 
+uniform float Celluloid_ContrastBoost <
+    ui_category = "Celluloid";
+    ui_type = "drag";
+    ui_min = 0.5; ui_max = 2.5;
+    ui_tooltip = "Boosts local contrast before band classification. Useful when scenes are flat or low saturation.";
+> = 1.5;
+
+uniform float Celluloid_DarkSceneAssist <
+    ui_category = "Celluloid";
+    ui_type = "drag";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_tooltip = "Lifts band separation, rim, and spec support in dark scenes without brightening the whole frame.";
+> = 0.55;
+
+uniform float Celluloid_OutlineAssist <
+    ui_category = "Celluloid";
+    ui_type = "drag";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_tooltip = "Additional outline sensitivity in low-contrast and low-saturation scenes.";
+> = 0.55;
+
 float Celluloid_Luminance(float3 color)
 {
     return dot(color, float3(0.299, 0.587, 0.114));
 }
 
-float3 Celluloid_SampleRegionAverage(float2 uv, float2 texel)
+float Celluloid_SaturationEstimate(float3 color)
 {
-    float3 color = 0.0.xxx;
+    float cMin = min(min(color.r, color.g), color.b);
+    float cMax = max(max(color.r, color.g), color.b);
+    return cMax - cMin;
+}
+
+float3 Celluloid_SampleRegionAverage(float2 uv, float2 texel, float radius)
+{
+    float2 dx = float2(texel.x * radius, 0.0);
+    float2 dy = float2(0.0, texel.y * radius);
+
+    float3 color = float3(0.0, 0.0, 0.0);
     color += tex2D(Celluloid_SourceSampler, uv).rgb * 4.0;
-    color += tex2D(Celluloid_SourceSampler, uv + float2(texel.x, 0.0)).rgb;
-    color += tex2D(Celluloid_SourceSampler, uv - float2(texel.x, 0.0)).rgb;
-    color += tex2D(Celluloid_SourceSampler, uv + float2(0.0, texel.y)).rgb;
-    color += tex2D(Celluloid_SourceSampler, uv - float2(0.0, texel.y)).rgb;
-    color += tex2D(Celluloid_SourceSampler, uv + texel).rgb;
-    color += tex2D(Celluloid_SourceSampler, uv - texel).rgb;
-    color += tex2D(Celluloid_SourceSampler, uv + float2(texel.x, -texel.y)).rgb;
-    color += tex2D(Celluloid_SourceSampler, uv + float2(-texel.x, texel.y)).rgb;
+    color += tex2D(Celluloid_SourceSampler, uv + dx).rgb;
+    color += tex2D(Celluloid_SourceSampler, uv - dx).rgb;
+    color += tex2D(Celluloid_SourceSampler, uv + dy).rgb;
+    color += tex2D(Celluloid_SourceSampler, uv - dy).rgb;
+    color += tex2D(Celluloid_SourceSampler, uv + dx + dy).rgb;
+    color += tex2D(Celluloid_SourceSampler, uv - dx - dy).rgb;
+    color += tex2D(Celluloid_SourceSampler, uv + dx - dy).rgb;
+    color += tex2D(Celluloid_SourceSampler, uv + float2(-dx.x, dy.y)).rgb;
     return color / 12.0;
 }
 
 float2 Celluloid_EvalLumaGradient(float2 uv, float2 texel)
 {
-    float lL = Celluloid_Luminance(Celluloid_SampleRegionAverage(uv - float2(texel.x, 0.0), texel));
-    float lR = Celluloid_Luminance(Celluloid_SampleRegionAverage(uv + float2(texel.x, 0.0), texel));
-    float lU = Celluloid_Luminance(Celluloid_SampleRegionAverage(uv + float2(0.0, texel.y), texel));
-    float lD = Celluloid_Luminance(Celluloid_SampleRegionAverage(uv - float2(0.0, texel.y), texel));
+    float lL = Celluloid_Luminance(Celluloid_SampleRegionAverage(uv - float2(texel.x, 0.0), texel, 1.0));
+    float lR = Celluloid_Luminance(Celluloid_SampleRegionAverage(uv + float2(texel.x, 0.0), texel, 1.0));
+    float lU = Celluloid_Luminance(Celluloid_SampleRegionAverage(uv + float2(0.0, texel.y), texel, 1.0));
+    float lD = Celluloid_Luminance(Celluloid_SampleRegionAverage(uv - float2(0.0, texel.y), texel, 1.0));
     return float2(lR - lL, lU - lD);
 }
 
-float3 Celluloid_EvalPseudoNormal(float2 lumaGradient)
+float3 Celluloid_EvalPseudoNormal(float2 lumaGradient, float normalGain)
 {
-    return normalize(float3(-lumaGradient * 3.2, 1.0));
+    return normalize(float3(-lumaGradient * normalGain, 1.0));
 }
 
 float Celluloid_EvalCelBand(float signalValue, float threshold, float softness)
@@ -154,7 +188,7 @@ float3 Celluloid_EvalCelDiffuse(float3 baseColor, float shadeSignal)
     float3 shadowRegion = baseColor * shadowTint;
     float3 midRegion = baseColor * midTint;
     float3 lightRegion = baseColor * lightTint;
-    float3 highlightRegion = lerp(lightRegion, 1.0.xxx, 0.22);
+    float3 highlightRegion = lerp(lightRegion, float3(1.0, 1.0, 1.0), 0.22);
 
     float3 diffuse = lerp(shadowRegion, midRegion, shadowToMid);
     diffuse = lerp(diffuse, lightRegion, midToLight);
@@ -162,62 +196,66 @@ float3 Celluloid_EvalCelDiffuse(float3 baseColor, float shadeSignal)
     return diffuse;
 }
 
-float Celluloid_EvalStylizedShadow(float shadeSignal, float cavityMask)
+float Celluloid_EvalStylizedShadow(float shadeSignal, float cavityMask, float darkAssist)
 {
     float broadShadow = 1.0 - Celluloid_EvalCelBand(shadeSignal, Celluloid_ShadowThreshold, Celluloid_ShadowSoftness);
-    return saturate(max(broadShadow * 0.88, cavityMask * 0.55));
+    return saturate(max(broadShadow * lerp(0.88, 0.72, darkAssist), cavityMask * lerp(0.55, 0.68, darkAssist)));
 }
 
-float3 Celluloid_EvalAmbientHemisphere(float3 normalValue, float3 baseColor, float aoMask)
+float3 Celluloid_EvalAmbientHemisphere(float3 normalValue, float3 baseColor, float cavityMask)
 {
     float3 skyColor = float3(0.53, 0.67, 0.84);
     float3 groundColor = float3(0.40, 0.34, 0.28);
     float hemiMix = normalValue.y * 0.5 + 0.5;
     float3 hemiColor = lerp(groundColor, skyColor, hemiMix);
-    float ambientStrength = lerp(0.58, 0.34, aoMask);
+    float ambientStrength = lerp(0.46, 0.24, cavityMask);
     return baseColor * hemiColor * ambientStrength;
 }
 
-float Celluloid_EvalSpecularMask(float3 normalValue, float3 lightDirValue, float3 viewDirValue, float shadeSignal, float materialMask)
+float Celluloid_EvalSpecularMask(float3 normalValue, float3 lightDirValue, float3 viewDirValue, float shadeSignal, float materialMask, float darkAssist)
 {
     float3 halfVector = normalize(lightDirValue + viewDirValue);
     float ndh = max(dot(normalValue, halfVector), 0.0);
     float specSignal = pow(ndh, 18.0);
     float specMask = smoothstep(Celluloid_SpecThreshold - 0.08, Celluloid_SpecThreshold + 0.08, specSignal);
-    specMask *= smoothstep(0.50, 0.85, shadeSignal);
+    specMask *= smoothstep(0.50 - darkAssist * 0.14, 0.85 - darkAssist * 0.08, shadeSignal);
     specMask *= materialMask;
     return specMask;
 }
 
-float3 Celluloid_EvalStylizedSpecular(float3 normalValue, float3 lightDirValue, float3 viewDirValue, float shadeSignal, float materialMask)
+float3 Celluloid_EvalStylizedSpecular(float3 normalValue, float3 lightDirValue, float3 viewDirValue, float shadeSignal, float materialMask, float darkAssist)
 {
     static const float3 specColor = float3(1.00, 0.94, 0.84);
-    return specColor * Celluloid_EvalSpecularMask(normalValue, lightDirValue, viewDirValue, shadeSignal, materialMask) * 0.48;
+    return specColor * Celluloid_EvalSpecularMask(normalValue, lightDirValue, viewDirValue, shadeSignal, materialMask, darkAssist) * lerp(0.48, 0.56, darkAssist);
 }
 
-float Celluloid_EvalRimMask(float3 normalValue, float3 viewDirValue, float edgeMask, float shadowMask)
+float Celluloid_EvalRimMask(float3 normalValue, float3 viewDirValue, float edgeMask, float shadowMask, float darkAssist)
 {
     float rim = 1.0 - max(dot(normalValue, viewDirValue), 0.0);
-    rim = pow(rim, 1.35);
-    rim = smoothstep(Celluloid_RimThreshold, 1.0, rim);
+    rim = pow(rim, lerp(1.35, 1.18, darkAssist));
+    rim = smoothstep(Celluloid_RimThreshold - darkAssist * 0.10, 1.0, rim);
     rim *= lerp(0.45, 1.0, shadowMask);
-    rim *= lerp(0.35, 0.85, edgeMask);
+    rim *= lerp(lerp(0.35, 0.55, darkAssist), 0.85, edgeMask);
     return rim;
 }
 
-float Celluloid_EvalOutline(float2 lumaGradient, float3 baseColor, float3 smoothColor)
+float Celluloid_EvalOutline(float2 lumaGradient, float3 baseColor, float3 smoothColor, float contrastAssist, float darkAssist)
 {
+    float outlineThreshold = Celluloid_OutlineThreshold * lerp(1.0, 0.70, darkAssist * Celluloid_OutlineAssist);
     float lumaEdge = length(lumaGradient);
     float chromaEdge = length(baseColor - smoothColor);
-    float edgeSignal = lumaEdge * 2.2 + chromaEdge * 1.35;
-    return smoothstep(Celluloid_OutlineThreshold, Celluloid_OutlineThreshold + 0.12, edgeSignal);
+    float edgeSignal = lumaEdge * lerp(2.2, 3.3, darkAssist * Celluloid_OutlineAssist);
+    edgeSignal += chromaEdge * lerp(1.35, 1.85, contrastAssist);
+    edgeSignal += contrastAssist * 0.14;
+    return smoothstep(outlineThreshold, outlineThreshold + 0.12, edgeSignal);
 }
 
-float Celluloid_EvalFogFactor(float detailMask, float2 uv)
+float Celluloid_EvalFogFactor(float detailMask, float contrastAssist, float2 uv)
 {
     float farProxy = smoothstep(0.18, 0.82, 1.0 - detailMask);
     float skyBias = smoothstep(0.20, 0.92, uv.y);
-    return saturate((farProxy * 0.78 + skyBias * 0.22) * Celluloid_FogWeight);
+    float fogSuppression = 1.0 - contrastAssist * 0.35;
+    return saturate((farProxy * 0.78 + skyBias * 0.22) * Celluloid_FogWeight * fogSuppression);
 }
 
 float3 Celluloid_ApplyAtmosphere(float3 colorValue, float fogFactor)
@@ -226,7 +264,7 @@ float3 Celluloid_ApplyAtmosphere(float3 colorValue, float fogFactor)
 
     float3 foggedColor = lerp(colorValue, atmosphereColor, fogFactor * 0.38);
     float foggedLuma = Celluloid_Luminance(foggedColor);
-    float3 flattenedColor = lerp(foggedColor, lerp(foggedLuma.xxx, atmosphereColor, 0.35), fogFactor * 0.30);
+    float3 flattenedColor = lerp(foggedColor, lerp(float3(foggedLuma, foggedLuma, foggedLuma), atmosphereColor, 0.35), fogFactor * 0.30);
     return lerp(colorValue, flattenedColor, fogFactor);
 }
 
@@ -235,7 +273,7 @@ float3 Celluloid_ApplyBandPreservingTonemap(float3 colorValue)
     float peak = max(max(colorValue.r, colorValue.g), colorValue.b);
     float shoulder = max(peak - 1.0, 0.0);
     colorValue /= 1.0 + shoulder * 0.65;
-    colorValue = pow(max(colorValue, 0.0.xxx), float3(0.96, 0.96, 0.96));
+    colorValue = pow(max(colorValue, float3(0.0, 0.0, 0.0)), float3(0.96, 0.96, 0.96));
     return saturate(colorValue);
 }
 
@@ -254,36 +292,55 @@ float4 Celluloid_PS(float4 pos : SV_Position, float2 texcoord : TEXCOORD) : SV_T
 {
     float2 texel = float2(BUFFER_RCP_WIDTH, BUFFER_RCP_HEIGHT);
     float3 baseColor = tex2D(Celluloid_SourceSampler, texcoord).rgb;
-    float3 smoothColor = Celluloid_SampleRegionAverage(texcoord, texel);
+    float3 smoothColor = Celluloid_SampleRegionAverage(texcoord, texel, 1.0);
+    float3 wideColor = Celluloid_SampleRegionAverage(texcoord, texel, 2.3);
     float smoothLuma = Celluloid_Luminance(smoothColor);
+    float wideLuma = Celluloid_Luminance(wideColor);
     float2 lumaGradient = Celluloid_EvalLumaGradient(texcoord, texel);
-    float3 pseudoNormal = Celluloid_EvalPseudoNormal(lumaGradient);
+
+    float baseSaturation = Celluloid_SaturationEstimate(baseColor);
+    float lowSatAssist = 1.0 - smoothstep(0.06, 0.24, baseSaturation);
+    float darkAssist = (1.0 - smoothstep(0.18, 0.46, smoothLuma)) * Celluloid_DarkSceneAssist;
+    float contrastAssist = saturate(
+        length(lumaGradient) * 2.8 * Celluloid_ContrastBoost +
+        abs(smoothLuma - wideLuma) * 2.1 * Celluloid_ContrastBoost +
+        length(baseColor - smoothColor) * 1.2
+    );
+
+    float normalGain = lerp(3.2, 4.6, saturate(darkAssist + lowSatAssist * 0.35));
+    float3 pseudoNormal = Celluloid_EvalPseudoNormal(lumaGradient, normalGain);
 
     float3 lightDirValue = normalize(Celluloid_LightDir);
     float3 viewDirValue = float3(0.0, 0.0, 1.0);
 
     float ndotl = max(dot(pseudoNormal, lightDirValue), 0.0);
-    float detailMask = saturate(length(baseColor - smoothColor) * 1.8 + length(lumaGradient) * 2.4);
-    float cavityMask = smoothstep(0.18, 0.65, detailMask) * (1.0 - smoothstep(0.58, 0.92, smoothLuma));
-    float shadeSignal = saturate(lerp(smoothLuma, ndotl, 0.62) + 0.10);
+    float boostedNdotL = saturate(ndotl + contrastAssist * 0.08 + darkAssist * 0.08);
+    float detailMask = saturate(length(baseColor - smoothColor) * 1.8 + abs(smoothLuma - wideLuma) * 1.4 + length(lumaGradient) * 2.4);
+    float cavityMask = smoothstep(0.16, 0.62, detailMask + contrastAssist * 0.16) * (1.0 - smoothstep(0.60 - darkAssist * 0.12, 0.92, smoothLuma));
+    float liftedLuma = smoothLuma + contrastAssist * 0.14 + darkAssist * 0.18 + lowSatAssist * 0.06;
+    float remappedLuma = smoothstep(0.05, 0.90, saturate(liftedLuma));
+    float shadeSignal = saturate(lerp(remappedLuma, boostedNdotL, 0.62 + lowSatAssist * 0.08) + 0.04);
     float bandIndex = Celluloid_EvalBandIndex(shadeSignal);
 
     float3 celDiffuse = Celluloid_EvalCelDiffuse(smoothColor, shadeSignal);
-    float shadowMask = Celluloid_EvalStylizedShadow(shadeSignal, cavityMask);
+    float shadowMask = Celluloid_EvalStylizedShadow(shadeSignal, cavityMask, darkAssist);
     float3 ambientTerm = Celluloid_EvalAmbientHemisphere(pseudoNormal, smoothColor, cavityMask);
-    float specMask = smoothstep(0.24, 0.82, smoothLuma) * (1.0 - detailMask * 0.30);
-    float3 specularTerm = Celluloid_EvalStylizedSpecular(pseudoNormal, lightDirValue, viewDirValue, shadeSignal, specMask);
-    float outlineMask = Celluloid_EvalOutline(lumaGradient, baseColor, smoothColor);
-    float rimMask = Celluloid_EvalRimMask(pseudoNormal, viewDirValue, outlineMask, shadowMask);
+
+    float specMask = smoothstep(0.16 - darkAssist * 0.08, 0.78, smoothLuma + contrastAssist * 0.16 + lowSatAssist * 0.04);
+    specMask *= (1.0 - cavityMask * 0.25);
+    float3 specularTerm = Celluloid_EvalStylizedSpecular(pseudoNormal, lightDirValue, viewDirValue, shadeSignal, specMask, darkAssist);
+
+    float outlineMask = Celluloid_EvalOutline(lumaGradient, baseColor, smoothColor, saturate(contrastAssist + lowSatAssist * 0.25), darkAssist);
+    float rimMask = Celluloid_EvalRimMask(pseudoNormal, viewDirValue, outlineMask, shadowMask, darkAssist);
 
     static const float3 rimColor = float3(0.98, 0.90, 0.72);
     static const float3 outlineColor = float3(0.19, 0.15, 0.18);
 
     float3 rimTerm = rimColor * rimMask * 0.42;
-    float fogFactor = Celluloid_EvalFogFactor(detailMask, texcoord);
+    float fogFactor = Celluloid_EvalFogFactor(detailMask, saturate(contrastAssist + darkAssist * 0.30), texcoord);
 
     float3 litColor = celDiffuse + ambientTerm + specularTerm + rimTerm;
-    litColor = lerp(litColor, baseColor, 0.18);
+    litColor = lerp(litColor, baseColor, lerp(0.18, 0.10, saturate(darkAssist + lowSatAssist * 0.20)));
 
     float3 localOutlineColor = lerp(baseColor * 0.28, outlineColor, 0.75);
     float outlineBlend = outlineMask * (1.0 - fogFactor * 0.65);
@@ -293,17 +350,17 @@ float4 Celluloid_PS(float4 pos : SV_Position, float2 texcoord : TEXCOORD) : SV_T
 
     float3 debugColor = litColor;
     if (Celluloid_DebugMode == 1)
-        debugColor = ndotl.xxx;
+        debugColor = float3(boostedNdotL, boostedNdotL, boostedNdotL);
     else if (Celluloid_DebugMode == 2)
         debugColor = Celluloid_BandDebugColor(bandIndex);
     else if (Celluloid_DebugMode == 3)
-        debugColor = shadowMask.xxx;
+        debugColor = float3(shadowMask, shadowMask, shadowMask);
     else if (Celluloid_DebugMode == 4)
-        debugColor = rimMask.xxx;
+        debugColor = float3(rimMask, rimMask, rimMask);
     else if (Celluloid_DebugMode == 5)
-        debugColor = outlineMask.xxx;
+        debugColor = float3(outlineMask, outlineMask, outlineMask);
     else if (Celluloid_DebugMode == 6)
-        debugColor = fogFactor.xxx;
+        debugColor = float3(fogFactor, fogFactor, fogFactor);
 
     return float4(lerp(baseColor, saturate(debugColor), Celluloid_EffectBlend), 1.0);
 }

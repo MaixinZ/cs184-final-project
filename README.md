@@ -7,7 +7,7 @@ A small OpenGL application that loads a single image, draws it as a full-screen 
 - **Multiple styles** via embedded GLSL fragment shaders: painterly, grayscale, Chinese ink–style painterly, pixel art, and a passthrough “original” view.
 - **Runtime switching** with number keys.
 - **Optional startup shader** via command-line index.
-- **Frame export**: press **P** to save the current framebuffer as a numbered **PNG** in the working directory (see [Saving images](#saving-images)).
+- **Frame export**: press **P** to save the current framebuffer as a numbered **PNG** in the working directory
 
 ## Requirements
 
@@ -60,12 +60,6 @@ The program expects to find the input image **`a6d288a49638ed480a7854f3ca3205a5.
 
 Close the window to quit.
 
-## Saving images
-
-When you press **P**, the app reads pixels from the **back buffer** after the current frame is drawn, writes a temporary PPM, then runs **`sips`** to produce **`pixelart_capture_<N>.png`** in the process working directory. Each successful save increments `N`.
-
-If saving fails, check that you are on macOS (or adapt the conversion step) and that the working directory is writable.
-
 ## Project layout
 
 | File        | Role |
@@ -78,7 +72,3 @@ If saving fails, check that you are on macOS (or adapt the conversion step) and 
 ## Customizing the input image
 
 Change the path passed to `stbi_load` in `main.cpp` to point at your own image, or rename your file to match the current string and keep the program’s working directory consistent when you run `./viewer`.
-
-## License / third party
-
-- **stb_image** is public domain / permissive; see the header in `stb_image.h` for details.

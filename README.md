@@ -1,15 +1,30 @@
-# Reshading Pipeline
+# Oil Paint Shader
 
-## Overview
-This project implements a image reshading pipeline using OpenGL shaders. The system produces various artistic effects while preserving important visual structures.
+An OpenGL fragment shader that creates an oil-paint style effect from a source demo image. The code can be used as a local tester for shading effect. 
+The files also include a video shader with the same fragment shading effect applying to the demo video taken from Cyberpunk 2077 trailor video. 
 
-## Features
-- Oil painting shader (edge-aware blur)
-- Red-green assistance shader (magenta/cyan remapping)
-- Black-ink shader (edge detection and stylization)
-- Real-time GPU rendering
+## What the shader does
+- applies a soft 3×3 blur
+- reduces blur in dark and high-contrast regions
+- preserves color saturation
+- adds a warm color shift
+- lifts shadow detail
+- adds mild posterization
+- detects edges and overlays dark brown / gold lines
+- blends the result with a paper-like background and light grain
 
-## Installation
-1. Clone the repository:
-   ```bash
-   git clone <your-repo-link>
+---
+
+## Build and Run
+
+### Requirements
+- OpenGL (3.3+)
+- GLFW
+- GLEW
+- C++ compiler (g++ / clang)
+
+### Compile
+
+**Linux / macOS:**
+```bash
+g++ main.cpp -o viewer -lglfw -lGLEW -lGL

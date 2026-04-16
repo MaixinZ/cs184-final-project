@@ -23,7 +23,6 @@ The files also include a video shader with the same fragment shading effect appl
 
 ### Compile
 
-**Linux / macOS:**
 ```bash
 clang++ main.cpp -std=c++17 \
 -I/opt/homebrew/include \
@@ -34,3 +33,9 @@ clang++ main.cpp -std=c++17 \
 -framework IOKit \
 -framework CoreVideo \
 -o viewer
+```
+
+### Run
+```bash
+./viewer
+```

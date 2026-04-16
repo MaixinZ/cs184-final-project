@@ -19,12 +19,18 @@ The files also include a video shader with the same fragment shading effect appl
 
 ### Requirements
 - OpenGL (3.3+)
-- GLFW
-- GLEW
 - C++ compiler (g++ / clang)
 
 ### Compile
 
 **Linux / macOS:**
 ```bash
-g++ main.cpp -o viewer -lglfw -lGLEW -lGL
+clang++ main.cpp -std=c++17 \
+-I/opt/homebrew/include \
+-L/opt/homebrew/lib \
+-lglfw -lGLEW \
+-framework OpenGL \
+-framework Cocoa \
+-framework IOKit \
+-framework CoreVideo \
+-o viewer

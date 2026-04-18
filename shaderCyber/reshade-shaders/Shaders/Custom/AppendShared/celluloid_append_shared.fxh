@@ -1,0 +1,9 @@
+#ifndef CELLULOID_APPEND_SHARED_FXH
+#define CELLULOID_APPEND_SHARED_FXH
+
+#ifndef CELLULOID_APPEND_LIBRARY_MODE
+#define CELLULOID_APPEND_LIBRARY_MODE
+#endif
+#include "../celluloid_append.fx"
+
+#endif

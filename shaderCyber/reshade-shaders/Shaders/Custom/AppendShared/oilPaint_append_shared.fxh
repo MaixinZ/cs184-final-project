@@ -1,0 +1,9 @@
+#ifndef OILPAINT_APPEND_SHARED_FXH
+#define OILPAINT_APPEND_SHARED_FXH
+
+#ifndef OILPAINT_APPEND_LIBRARY_MODE
+#define OILPAINT_APPEND_LIBRARY_MODE
+#endif
+#include "../oilPaint_append.fx"
+
+#endif

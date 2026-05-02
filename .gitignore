@@ -5,7 +5,12 @@ obj/
 # Compiled object files
 *.o
 *.obj
+# Python cache files
+__pycache__/
+*.py[cod]
 # Executables
+viewer
+viewer_debug
 *.exe
 *.out
 *.app
@@ -29,5 +34,7 @@ vscode/
 .clangd
 # agent files
 *.agent
+.claude/
 fx/Icon
 report/
+.vscode/

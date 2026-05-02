@@ -1,0 +1,175 @@
+{
+  "nodes": [
+    {
+      "id": "impl-black-ink",
+      "type": "text",
+      "x": 0,
+      "y": -100,
+      "width": 320,
+      "height": 100,
+      "text": "# black-ink Shader\nPost-processing manga NPR pipeline\n`fx/black-ink.fx` · `shaders/black-ink.frag`",
+      "color": "5"
+    },
+    {
+      "id": "stage-edges",
+      "type": "text",
+      "x": -420,
+      "y": 60,
+      "width": 260,
+      "height": 70,
+      "text": "**Edge Hierarchy**\nSilhouette → Crease → Contact\n`evalLinePriority`",
+      "color": "4"
+    },
+    {
+      "id": "stage-tone",
+      "type": "text",
+      "x": -80,
+      "y": 60,
+      "width": 260,
+      "height": 70,
+      "text": "**Screentone + Hatching**\nMicro-dots · Hatch · Cross-hatch\n`evalDotTone` · `evalHatchPattern`",
+      "color": "4"
+    },
+    {
+      "id": "stage-noise",
+      "type": "text",
+      "x": 260,
+      "y": 60,
+      "width": 260,
+      "height": 70,
+      "text": "**Procedural Noise**\nPaper grain · Smudge · Dot warp\n`valueNoise` · `evalPaperGrain`",
+      "color": "4"
+    },
+    {
+      "id": "paper-ahead",
+      "type": "text",
+      "x": -480,
+      "y": 220,
+      "width": 340,
+      "height": 110,
+      "text": "## Roshaan 2026 — AHEAD\nAdaptive Hierarchical Edge Detection\nSilhouette / Structure / Texture layers\nMax-pooling fusion · Real-time shader\n**Direct parallel to edge pipeline**",
+      "color": "6"
+    },
+    {
+      "id": "paper-xie",
+      "type": "text",
+      "x": -60,
+      "y": 220,
+      "width": 340,
+      "height": 110,
+      "text": "## Xie et al. 2025 — CGF\nScreentone-Preserved Manga Retargeting\nHierarchical grid anchors · RPSM\nTranslation-invariant screentone loss\n**Domain overlap with tone pipeline**",
+      "color": "6"
+    },
+    {
+      "id": "paper-liu",
+      "type": "text",
+      "x": 340,
+      "y": 220,
+      "width": 300,
+      "height": 100,
+      "text": "## Liu et al. 2025 — SIVP\nPencil drawing via hybrid noise\nMulti-scale noise composition\n**Technique overlap with noise stages**",
+      "color": "6"
+    },
+    {
+      "id": "gap-depth",
+      "type": "text",
+      "x": -480,
+      "y": 410,
+      "width": 280,
+      "height": 60,
+      "text": "**Gap**: Depth-aware edge hierarchy\n(AHEAD uses depth; black-ink has luma-only proxy)",
+      "color": "1"
+    },
+    {
+      "id": "gap-realtime-tone",
+      "type": "text",
+      "x": -100,
+      "y": 410,
+      "width": 280,
+      "height": 60,
+      "text": "**Gap**: Real-time learned screentone\n(Xie is offline neural; black-ink is procedural)",
+      "color": "1"
+    },
+    {
+      "id": "gap-temporal",
+      "type": "text",
+      "x": 260,
+      "y": 410,
+      "width": 280,
+      "height": 60,
+      "text": "**Gap**: Temporal coherence\nfor animated manga with stable screentone",
+      "color": "1"
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-impl-edges",
+      "fromNode": "impl-black-ink",
+      "toNode": "stage-edges",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "e-impl-tone",
+      "fromNode": "impl-black-ink",
+      "toNode": "stage-tone",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "e-impl-noise",
+      "fromNode": "impl-black-ink",
+      "toNode": "stage-noise",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "e-ahead-edges",
+      "fromNode": "paper-ahead",
+      "toNode": "stage-edges",
+      "fromSide": "top",
+      "toSide": "bottom",
+      "label": "direct parallel"
+    },
+    {
+      "id": "e-xie-tone",
+      "fromNode": "paper-xie",
+      "toNode": "stage-tone",
+      "fromSide": "top",
+      "toSide": "bottom",
+      "label": "domain overlap"
+    },
+    {
+      "id": "e-liu-noise",
+      "fromNode": "paper-liu",
+      "toNode": "stage-noise",
+      "fromSide": "top",
+      "toSide": "bottom",
+      "label": "technique overlap"
+    },
+    {
+      "id": "e-ahead-gap",
+      "fromNode": "paper-ahead",
+      "toNode": "gap-depth",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "label": "addresses"
+    },
+    {
+      "id": "e-xie-gap",
+      "fromNode": "paper-xie",
+      "toNode": "gap-realtime-tone",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "label": "partially addresses"
+    },
+    {
+      "id": "e-liu-gap",
+      "fromNode": "paper-liu",
+      "toNode": "gap-temporal",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "label": "does not address"
+    }
+  ]
+}

@@ -26,60 +26,162 @@ void main()
 const char* fragmentShaderSource = R"(
 #version 330 core
 
+
 in vec2 uv;
 out vec4 FragColor;
 
+
 uniform sampler2D tex;
+
 
 float luminance(vec3 c)
 {
-    return dot(c, vec3(0.299, 0.587, 0.114));
+   return dot(c, vec3(0.299, 0.587, 0.114));
 }
 
-vec3 assistRG(vec3 c)
-{
-    float rStrength = c.r - max(c.g, c.b);
-    float gStrength = c.g - max(c.r, c.b);
-
-    float redMask = smoothstep(0.04, 0.22, rStrength);
-    float greenMask = smoothstep(0.04, 0.22, gStrength);
-
-    float luma = luminance(c);
-
-    // Push red-dominant areas toward yellow/orange.
-    // Yellow is more distinguishable than red/green for dichromats.
-    vec3 redTarget = vec3(
-        min(c.r * 1.08 + 0.12, 1.0),
-        min(c.g * 0.75 + 0.32, 1.0),
-        c.b * 0.45
-    );
-
-    // Push green-dominant areas toward blue/cyan.
-    // Blue is separated from yellow on a more visible axis.
-    vec3 greenTarget = vec3(
-        c.r * 0.45,
-        min(c.g * 0.85 + 0.05, 1.0),
-        min(c.b * 1.25 + 0.35, 1.0)
-    );
-
-    // Preserve luminance so objects do not become unnaturally bright/dark.
-    redTarget *= luma / max(luminance(redTarget), 0.001);
-    greenTarget *= luma / max(luminance(greenTarget), 0.001);
-
-    vec3 outColor = c;
-    outColor = mix(outColor, redTarget, redMask * 0.85);
-    outColor = mix(outColor, greenTarget, greenMask * 0.85);
-
-    return clamp(outColor, 0.0, 1.0);
-}
 
 void main()
 {
-    vec3 c = texture(tex, uv).rgb;
-    vec3 result = assistRG(c);
-    FragColor = vec4(result, 1.0);
+   vec2 texel = 1.0 / vec2(textureSize(tex, 0));
+
+
+   vec3 c  = texture(tex, uv).rgb;
+   float baseLuma = luminance(c);
+   
+   vec3 blur = vec3(0.0);
+   float totalWeight = 0.0;
+
+
+   for (int x = -4; x <= 4; x++)
+   {
+       for (int y = -4; y <= 4; y++)
+       {
+           vec2 offset = vec2(float(x), float(y)) * texel;
+           vec3 sampleColor = texture(tex, uv + offset).rgb;
+
+
+           float dist = length(vec2(float(x), float(y)));
+
+
+           float spatialWeight = exp(-(dist * dist) / 30.0);
+
+
+           float colorDiff = length(sampleColor - c);
+           float colorWeight = exp(-(colorDiff * colorDiff) / 0.30);
+
+
+           float weight = spatialWeight * colorWeight;
+
+
+           blur += sampleColor * weight;
+           totalWeight += weight;
+       }
+   }
+
+
+   blur /= totalWeight;
+
+   float lL  = luminance(texture(tex, uv - vec2(texel.x, 0.0)).rgb);
+   float lR  = luminance(texture(tex, uv + vec2(texel.x, 0.0)).rgb);
+   float lU  = luminance(texture(tex, uv + vec2(0.0, texel.y)).rgb);
+   float lD  = luminance(texture(tex, uv - vec2(0.0, texel.y)).rgb);
+
+
+   float lUL = luminance(texture(tex, uv + vec2(-texel.x, texel.y)).rgb);
+   float lUR = luminance(texture(tex, uv + vec2(texel.x, texel.y)).rgb);
+   float lDL = luminance(texture(tex, uv + vec2(-texel.x, -texel.y)).rgb);
+   float lDR = luminance(texture(tex, uv + vec2(texel.x, -texel.y)).rgb);
+
+
+
+   float localMin = min(min(min(lL, lR), min(lU, lD)),
+                        min(min(lUL, lUR), min(lDL, lDR)));
+   float localMax = max(max(max(lL, lR), max(lU, lD)),
+                        max(max(lUL, lUR), max(lDL, lDR)));
+   float localContrast = localMax - localMin;
+
+   // Thickness proxy (flat areas = thicker paint)
+   float thickness = 1.0 - smoothstep(0.02, 0.25, localContrast);
+
+
+   // Light diffusion (oil translucency)
+   float scatter = smoothstep(0.2, 0.9, baseLuma);
+
+
+   float shadowProtect   = 1.0 - smoothstep(0.08, 0.30, baseLuma);
+   float contrastProtect = smoothstep(0.03, 0.09, localContrast);
+
+
+   float blurAmount = 0.55;
+   blurAmount *= (1.0 - 0.65 * shadowProtect);
+   blurAmount *= (1.0 - 0.50 * contrastProtect);
+
+
+   // add thickness-based diffusion
+   blurAmount += thickness * 0.35;
+
+
+   blurAmount = clamp(blurAmount, 0.15, 0.75);
+
+
+   vec3 painter = mix(c, blur, blurAmount);
+
+
+   // highlight scattering (glow inside oil)
+   vec3 glow = blur * 1.15;
+   float glowMask = smoothstep(0.5, 0.95, baseLuma);
+   painter = mix(painter, glow, glowMask * 0.25);
+
+   float luma = luminance(painter);
+   painter = mix(vec3(luma), painter, 0.90);
+
+
+   painter.r *= 1.10;
+   painter.g *= 1.00;
+   painter.b *= 0.97;
+
+
+   painter = pow(painter, vec3(0.92));
+
+
+   float shadowLift = smoothstep(0.00, 0.22, baseLuma);
+   vec3 lifted = mix(painter * 1.18, painter, shadowLift);
+   painter = mix(lifted, painter, 0.35);
+
+
+   float levelsDark = 10.0;
+   float levelsBright = 6.0;
+   float levels = mix(levelsDark, levelsBright, smoothstep(0.08, 0.45, baseLuma));
+   painter = floor(painter * levels) / levels;
+
+   float dx = lR - lL;
+   float dy = lU - lD;
+   float edge = length(vec2(dx, dy));
+
+
+   edge *= mix(1.6, 1.0, smoothstep(0.05, 0.35, baseLuma));
+
+
+   float edgeMask = smoothstep(0.02, 0.1, edge);
+
+
+   vec3 paper = vec3(0.95, 0.88, 0.74);
+   vec3 result = mix(paper, painter, 0.92);
+   result = mix(result, blur, edgeMask * 0.75);
+
+
+   vec3 lineColor = vec3(0.42, 0.28, 0.10);
+   result = mix(result, lineColor, edgeMask * 0.05);
+
+   float grain = fract(sin(dot(uv * vec2(1400.0, 900.0),
+                       vec2(12.9898, 78.233))) * 43758.5453);
+   result *= 0.985 + 0.03 * grain;
+
+
+   FragColor = vec4(clamp(result, 0.0, 1.0), 1.0);
 }
 )";
+
 
 
 GLuint compileShader(GLenum type, const char* src)

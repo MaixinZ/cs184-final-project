@@ -1,13 +1,7 @@
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
+#include <opencv2/opencv.hpp>
 #include <iostream>
-#include <vector>
-
-#define STB_IMAGE_IMPLEMENTATION
-#include "stb_image.h"
-
-#define STB_IMAGE_WRITE_IMPLEMENTATION
-#include "stb_image_write.h"
 
 const char* vertexShaderSource = R"(
 #version 330 core
@@ -19,7 +13,7 @@ out vec2 uv;
 void main()
 {
     uv = aUV;
-    gl_Position = vec4(aPos,0.0,1.0);
+    gl_Position = vec4(aPos, 0.0, 1.0);
 }
 )";
 
@@ -106,25 +100,6 @@ GLuint createProgram()
     return program;
 }
 
-void saveScreenshot(const char* filename, int width, int height)
-{
-    std::vector<unsigned char> pixels(width * height * 3);
-
-    glReadPixels(0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE, pixels.data());
-
-    // Flip vertically because OpenGL's origin is bottom-left
-    for (int y = 0; y < height / 2; y++) {
-        for (int x = 0; x < width * 3; x++) {
-            std::swap(
-                pixels[y * width * 3 + x],
-                pixels[(height - 1 - y) * width * 3 + x]
-            );
-        }
-    }
-
-    stbi_write_png(filename, width, height, 3, pixels.data(), width * 3);
-}
-
 int main()
 {
     if (!glfwInit())
@@ -141,7 +116,7 @@ int main()
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
 #endif
 
-    GLFWwindow* window = glfwCreateWindow(1280, 720, "Viewer", NULL, NULL);
+    GLFWwindow* window = glfwCreateWindow(1280, 720, "Video Viewer", NULL, NULL);
     if (!window)
     {
         std::cout << "Window creation failed\n";
@@ -155,7 +130,6 @@ int main()
     if (glewInit() != GLEW_OK)
     {
         std::cout << "GLEW failed\n";
-        glfwTerminate();
         return -1;
     }
 
@@ -163,13 +137,13 @@ int main()
 
     float quad[] =
     {
-        -1, -1, 0, 0,
-         1, -1, 1, 0,
-         1,  1, 1, 1,
+        -1,-1, 0,0,
+         1,-1, 1,0,
+         1, 1, 1,1,
 
-        -1, -1, 0, 0,
-         1,  1, 1, 1,
-        -1,  1, 0, 1
+        -1,-1, 0,0,
+         1, 1, 1,1,
+        -1, 1, 0,1
     };
 
     GLuint vao, vbo;
@@ -186,17 +160,26 @@ int main()
     glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2 * sizeof(float)));
     glEnableVertexAttribArray(1);
 
-    int imgWidth, imgHeight, channels;
-
-    stbi_set_flip_vertically_on_load(true);
-    unsigned char* data = stbi_load("demo.jpg", &imgWidth, &imgHeight, &channels, 0);
-
-    if (!data)
+    cv::VideoCapture cap("video_demo.mov");
+    if (!cap.isOpened())
     {
-        std::cout << "Image failed to load\n";
-        glfwTerminate();
+        std::cout << "Video failed to open\n";
         return -1;
     }
+
+    cv::Mat frame;
+    if (!cap.read(frame))
+    {
+        std::cout << "Failed to read first frame\n";
+        return -1;
+    }
+
+    cv::cvtColor(frame, frame, cv::COLOR_BGR2RGB);
+    cv::flip(frame, frame, 0);
+
+    int width = frame.cols;
+    int height = frame.rows;
+    int channels = frame.channels();
 
     GLuint texture;
     glGenTextures(1, &texture);
@@ -204,41 +187,59 @@ int main()
 
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
-    GLenum format = (channels == 4) ? GL_RGBA : GL_RGB;
-    glTexImage2D(GL_TEXTURE_2D, 0, format, imgWidth, imgHeight, 0, format, GL_UNSIGNED_BYTE, data);
+    GLenum format = channels == 4 ? GL_RGBA : GL_RGB;
 
-    stbi_image_free(data);
+    glTexImage2D(GL_TEXTURE_2D, 0, format, width, height, 0,
+                 format, GL_UNSIGNED_BYTE, frame.data);
 
     glUseProgram(program);
     glUniform1i(glGetUniformLocation(program, "tex"), 0);
 
-    bool saved = false;
+    bool isPlaying = false;
+    bool spacePressedLastFrame = false;
+
+    double fps = cap.get(cv::CAP_PROP_FPS);
+    double frameTime = 1.0 / fps;
+    double lastFrameSwitch = glfwGetTime();
 
     while (!glfwWindowShouldClose(window))
     {
         glfwPollEvents();
 
-        glClear(GL_COLOR_BUFFER_BIT);
+        bool spacePressedNow = glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS;
+        if (spacePressedNow && !spacePressedLastFrame)
+        {
+            isPlaying = !isPlaying;
+        }
+        spacePressedLastFrame = spacePressedNow;
 
-        glUseProgram(program);
+        double now = glfwGetTime();
 
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, texture);
+        if (isPlaying && now - lastFrameSwitch >= frameTime)
+        {
+            if (!cap.read(frame))
+                break;
 
-        glBindVertexArray(vao);
-        glDrawArrays(GL_TRIANGLES, 0, 6);
+            cv::cvtColor(frame, frame, cv::COLOR_BGR2RGB);
+            cv::flip(frame, frame, 0);
 
-        if (!saved) {
-            int fbWidth, fbHeight;
-            glfwGetFramebufferSize(window, &fbWidth, &fbHeight);
-            saveScreenshot("output.png", fbWidth, fbHeight);
-            saved = true;
+            glBindTexture(GL_TEXTURE_2D, texture);
+            glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height,
+                            format, GL_UNSIGNED_BYTE, frame.data);
+
+            lastFrameSwitch = now;
         }
 
+        glClear(GL_COLOR_BUFFER_BIT);
+        glUseProgram(program);
+        glBindVertexArray(vao);
+        glDrawArrays(GL_TRIANGLES, 0, 6);
         glfwSwapBuffers(window);
     }
-
+    cap.release();
     glfwTerminate();
     return 0;
 }

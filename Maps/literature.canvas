@@ -3,19 +3,29 @@
     {
       "id": "impl-black-ink",
       "type": "text",
-      "x": 0,
-      "y": -100,
+      "x": -340,
+      "y": -200,
       "width": 320,
       "height": 100,
       "text": "# black-ink Shader\nPost-processing manga NPR pipeline\n`fx/black-ink.fx` · `shaders/black-ink.frag`",
       "color": "5"
     },
     {
+      "id": "impl-celluloid",
+      "type": "text",
+      "x": 340,
+      "y": -200,
+      "width": 320,
+      "height": 100,
+      "text": "# celluloid Shader\nPost-processing cel-shading NPR pipeline\n`fx/celluloid.fx` · `shaders/celluloid.frag`",
+      "color": "5"
+    },
+    {
       "id": "stage-edges",
       "type": "text",
-      "x": -420,
-      "y": 60,
-      "width": 260,
+      "x": -560,
+      "y": -40,
+      "width": 240,
       "height": 70,
       "text": "**Edge Hierarchy**\nSilhouette → Crease → Contact\n`evalLinePriority`",
       "color": "4"
@@ -23,9 +33,9 @@
     {
       "id": "stage-tone",
       "type": "text",
-      "x": -80,
-      "y": 60,
-      "width": 260,
+      "x": -260,
+      "y": -40,
+      "width": 240,
       "height": 70,
       "text": "**Screentone + Hatching**\nMicro-dots · Hatch · Cross-hatch\n`evalDotTone` · `evalHatchPattern`",
       "color": "4"
@@ -33,95 +43,200 @@
     {
       "id": "stage-noise",
       "type": "text",
-      "x": 260,
+      "x": -560,
       "y": 60,
-      "width": 260,
+      "width": 240,
       "height": 70,
       "text": "**Procedural Noise**\nPaper grain · Smudge · Dot warp\n`valueNoise` · `evalPaperGrain`",
       "color": "4"
     },
     {
+      "id": "stage-celband",
+      "type": "text",
+      "x": 260,
+      "y": -40,
+      "width": 260,
+      "height": 70,
+      "text": "**Cel Band Quantization**\n4-band smoothstep: shadow→mid→light→highlight\n`EvalCelBand` · `EvalBandIndex`",
+      "color": "3"
+    },
+    {
+      "id": "stage-cellight",
+      "type": "text",
+      "x": 560,
+      "y": -40,
+      "width": 260,
+      "height": 70,
+      "text": "**Stylized Lighting**\nSpecular · Rim · Ambient hemisphere\n`EvalStylizedSpecular` · `EvalRimMask`",
+      "color": "3"
+    },
+    {
+      "id": "stage-outline",
+      "type": "text",
+      "x": 260,
+      "y": 60,
+      "width": 260,
+      "height": 70,
+      "text": "**Outline + Atmosphere**\nLuma/chroma edge · Fog proxy\n`EvalOutline` · `ApplyAtmosphere`",
+      "color": "3"
+    },
+    {
+      "id": "shared-pseudonormal",
+      "type": "text",
+      "x": -80,
+      "y": -120,
+      "width": 480,
+      "height": 50,
+      "text": "**Shared: Pseudo-Normal from Luma Gradient** — Sobel/Scharr → `EvalPseudoNormal`",
+      "color": "2"
+    },
+    {
       "id": "paper-ahead",
       "type": "text",
-      "x": -480,
+      "x": -620,
       "y": 220,
       "width": 340,
-      "height": 110,
-      "text": "## Roshaan 2026 — AHEAD\nAdaptive Hierarchical Edge Detection\nSilhouette / Structure / Texture layers\nMax-pooling fusion · Real-time shader\n**Direct parallel to edge pipeline**",
+      "height": 100,
+      "text": "## Roshaan 2026 — AHEAD\nAdaptive Hierarchical Edge Detection\nSilhouette / Structure / Texture layers\n**Relevant to both shaders' edge extraction**",
       "color": "6"
     },
     {
       "id": "paper-xie",
       "type": "text",
-      "x": -60,
+      "x": -220,
       "y": 220,
-      "width": 340,
-      "height": 110,
-      "text": "## Xie et al. 2025 — CGF\nScreentone-Preserved Manga Retargeting\nHierarchical grid anchors · RPSM\nTranslation-invariant screentone loss\n**Domain overlap with tone pipeline**",
+      "width": 320,
+      "height": 100,
+      "text": "## Xie et al. 2025 — CGF\nScreentone-Preserved Manga Retargeting\nHierarchical grid anchors · RPSM\n**Domain overlap with tone pipeline**",
       "color": "6"
     },
     {
       "id": "paper-liu",
       "type": "text",
-      "x": 340,
-      "y": 220,
+      "x": -620,
+      "y": 360,
       "width": 300,
-      "height": 100,
+      "height": 80,
       "text": "## Liu et al. 2025 — SIVP\nPencil drawing via hybrid noise\nMulti-scale noise composition\n**Technique overlap with noise stages**",
+      "color": "6"
+    },
+    {
+      "id": "paper-lucena",
+      "type": "text",
+      "x": 200,
+      "y": 220,
+      "width": 340,
+      "height": 100,
+      "text": "## Lucena et al. 2025 — SIGGRAPH Asia\nEngine-Integrated Cel-Shading for UE5\nSmoothstep bands · Deferred integration\n**Direct parallel to cel band pipeline**",
+      "color": "6"
+    },
+    {
+      "id": "paper-chen",
+      "type": "text",
+      "x": 200,
+      "y": 360,
+      "width": 340,
+      "height": 80,
+      "text": "## Chen et al. 2025 — IJCV\nAdvances in 3D Neural Stylization Survey\nNeural vs. procedural NPR landscape\n**Contextual positioning**",
       "color": "6"
     },
     {
       "id": "gap-depth",
       "type": "text",
-      "x": -480,
-      "y": 410,
+      "x": -620,
+      "y": 500,
       "width": 280,
       "height": 60,
-      "text": "**Gap**: Depth-aware edge hierarchy\n(AHEAD uses depth; black-ink has luma-only proxy)",
+      "text": "**Gap**: Depth-aware edge hierarchy\n(AHEAD uses depth; both shaders have luma-only proxy)",
       "color": "1"
     },
     {
       "id": "gap-realtime-tone",
       "type": "text",
-      "x": -100,
-      "y": 410,
+      "x": -280,
+      "y": 500,
       "width": 280,
       "height": 60,
       "text": "**Gap**: Real-time learned screentone\n(Xie is offline neural; black-ink is procedural)",
       "color": "1"
     },
     {
-      "id": "gap-temporal",
+      "id": "gap-multilight",
       "type": "text",
-      "x": 260,
-      "y": 410,
+      "x": 60,
+      "y": 500,
       "width": 280,
       "height": 60,
-      "text": "**Gap**: Temporal coherence\nfor animated manga with stable screentone",
+      "text": "**Gap**: Multi-light cel from image-space\n(Lucena needs engine access; celluloid has single light)",
+      "color": "1"
+    },
+    {
+      "id": "gap-temporal",
+      "type": "text",
+      "x": 400,
+      "y": 500,
+      "width": 280,
+      "height": 60,
+      "text": "**Gap**: Temporal coherence\nfor animated NPR with stable bands + screentone",
       "color": "1"
     }
   ],
   "edges": [
     {
-      "id": "e-impl-edges",
+      "id": "e-bi-edges",
       "fromNode": "impl-black-ink",
       "toNode": "stage-edges",
       "fromSide": "bottom",
       "toSide": "top"
     },
     {
-      "id": "e-impl-tone",
+      "id": "e-bi-tone",
       "fromNode": "impl-black-ink",
       "toNode": "stage-tone",
       "fromSide": "bottom",
       "toSide": "top"
     },
     {
-      "id": "e-impl-noise",
+      "id": "e-bi-noise",
       "fromNode": "impl-black-ink",
       "toNode": "stage-noise",
       "fromSide": "bottom",
       "toSide": "top"
+    },
+    {
+      "id": "e-cel-band",
+      "fromNode": "impl-celluloid",
+      "toNode": "stage-celband",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "e-cel-light",
+      "fromNode": "impl-celluloid",
+      "toNode": "stage-cellight",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "e-cel-outline",
+      "fromNode": "impl-celluloid",
+      "toNode": "stage-outline",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "e-bi-pseudo",
+      "fromNode": "impl-black-ink",
+      "toNode": "shared-pseudonormal",
+      "fromSide": "bottom",
+      "toSide": "left"
+    },
+    {
+      "id": "e-cel-pseudo",
+      "fromNode": "impl-celluloid",
+      "toNode": "shared-pseudonormal",
+      "fromSide": "bottom",
+      "toSide": "right"
     },
     {
       "id": "e-ahead-edges",
@@ -130,6 +245,14 @@
       "fromSide": "top",
       "toSide": "bottom",
       "label": "direct parallel"
+    },
+    {
+      "id": "e-ahead-outline",
+      "fromNode": "paper-ahead",
+      "toNode": "stage-outline",
+      "fromSide": "top",
+      "toSide": "bottom",
+      "label": "technique overlap"
     },
     {
       "id": "e-xie-tone",
@@ -148,6 +271,30 @@
       "label": "technique overlap"
     },
     {
+      "id": "e-lucena-celband",
+      "fromNode": "paper-lucena",
+      "toNode": "stage-celband",
+      "fromSide": "top",
+      "toSide": "bottom",
+      "label": "direct parallel"
+    },
+    {
+      "id": "e-lucena-cellight",
+      "fromNode": "paper-lucena",
+      "toNode": "stage-cellight",
+      "fromSide": "top",
+      "toSide": "bottom",
+      "label": "technique overlap"
+    },
+    {
+      "id": "e-chen-context",
+      "fromNode": "paper-chen",
+      "toNode": "impl-celluloid",
+      "fromSide": "top",
+      "toSide": "bottom",
+      "label": "landscape context"
+    },
+    {
       "id": "e-ahead-gap",
       "fromNode": "paper-ahead",
       "toNode": "gap-depth",
@@ -164,12 +311,20 @@
       "label": "partially addresses"
     },
     {
-      "id": "e-liu-gap",
-      "fromNode": "paper-liu",
+      "id": "e-lucena-gap",
+      "fromNode": "paper-lucena",
+      "toNode": "gap-multilight",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "label": "addresses (with engine access)"
+    },
+    {
+      "id": "e-chen-gap",
+      "fromNode": "paper-chen",
       "toNode": "gap-temporal",
       "fromSide": "bottom",
       "toSide": "top",
-      "label": "does not address"
+      "label": "surveys approaches"
     }
   ]
 }

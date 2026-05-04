@@ -26,162 +26,91 @@ void main()
 const char* fragmentShaderSource = R"(
 #version 330 core
 
-
 in vec2 uv;
 out vec4 FragColor;
 
-
 uniform sampler2D tex;
-
 
 float luminance(vec3 c)
 {
-   return dot(c, vec3(0.299, 0.587, 0.114));
+    return dot(c, vec3(0.299, 0.587, 0.114));
 }
 
+float rand(vec2 p)
+{
+    return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453);
+}
+
+float brushNoise(vec2 uv)
+{
+    // Divide into cells (each cell has its own stroke direction)
+    vec2 cell = floor(uv * vec2(20.0, 20.0));
+
+    // Random angle per cell
+    float angle = rand(cell) * 6.2831; // 0 to 2π
+    vec2 dir = vec2(cos(angle), sin(angle));
+
+    // Project uv onto this random direction
+    float proj = dot(uv * 8.0, dir);
+
+    // Broken stroke (not continuous)
+    float stroke = sin(proj * 40.0 + rand(cell + 3.7) * 6.2831);
+
+    // Add secondary noise to break uniformity
+    float variation = rand(cell + floor(uv * 100.0));
+
+    stroke = mix(stroke, variation * 2.0 - 1.0, 0.4);
+
+    return 0.5 + 0.5 * stroke;
+}
 
 void main()
 {
-   vec2 texel = 1.0 / vec2(textureSize(tex, 0));
+    vec2 texel = 1.0 / vec2(textureSize(tex, 0));
 
+    vec3 c = texture(tex, uv).rgb;
+    float baseLuma = luminance(c);
 
-   vec3 c  = texture(tex, uv).rgb;
-   float baseLuma = luminance(c);
-   
-   vec3 blur = vec3(0.0);
-   float totalWeight = 0.0;
+    vec3 blur = vec3(0.0);
+    float totalWeight = 0.0;
 
+    for (int x = -4; x <= 4; x++)
+    {
+        for (int y = -4; y <= 4; y++)
+        {
+            vec2 offset = vec2(float(x), float(y)) * texel;
+            vec3 sampleColor = texture(tex, uv + offset).rgb;
 
-   for (int x = -4; x <= 4; x++)
-   {
-       for (int y = -4; y <= 4; y++)
-       {
-           vec2 offset = vec2(float(x), float(y)) * texel;
-           vec3 sampleColor = texture(tex, uv + offset).rgb;
+            float dist = length(vec2(float(x), float(y)));
+            float spatialWeight = exp(-(dist * dist) / 30.0);
 
+            float colorDiff = length(sampleColor - c);
+            float colorWeight = exp(-(colorDiff * colorDiff) / 0.30);
 
-           float dist = length(vec2(float(x), float(y)));
+            float weight = spatialWeight * colorWeight;
 
+            blur += sampleColor * weight;
+            totalWeight += weight;
+        }
+    }
 
-           float spatialWeight = exp(-(dist * dist) / 30.0);
+    blur /= totalWeight;
 
+    vec3 painter = blur;
 
-           float colorDiff = length(sampleColor - c);
-           float colorWeight = exp(-(colorDiff * colorDiff) / 0.30);
+    float levelsDark = 10.0;
+    float levelsBright = 4.0;
+    float levels = mix(levelsDark, levelsBright, smoothstep(0.08, 0.45, baseLuma));
+    painter = floor(painter * levels) / levels;
 
+    float stroke = brushNoise(uv);
 
-           float weight = spatialWeight * colorWeight;
+    // subtle modulation
+    painter *= 0.97 + 0.06 * stroke;
 
-
-           blur += sampleColor * weight;
-           totalWeight += weight;
-       }
-   }
-
-
-   blur /= totalWeight;
-
-   float lL  = luminance(texture(tex, uv - vec2(texel.x, 0.0)).rgb);
-   float lR  = luminance(texture(tex, uv + vec2(texel.x, 0.0)).rgb);
-   float lU  = luminance(texture(tex, uv + vec2(0.0, texel.y)).rgb);
-   float lD  = luminance(texture(tex, uv - vec2(0.0, texel.y)).rgb);
-
-
-   float lUL = luminance(texture(tex, uv + vec2(-texel.x, texel.y)).rgb);
-   float lUR = luminance(texture(tex, uv + vec2(texel.x, texel.y)).rgb);
-   float lDL = luminance(texture(tex, uv + vec2(-texel.x, -texel.y)).rgb);
-   float lDR = luminance(texture(tex, uv + vec2(texel.x, -texel.y)).rgb);
-
-
-
-   float localMin = min(min(min(lL, lR), min(lU, lD)),
-                        min(min(lUL, lUR), min(lDL, lDR)));
-   float localMax = max(max(max(lL, lR), max(lU, lD)),
-                        max(max(lUL, lUR), max(lDL, lDR)));
-   float localContrast = localMax - localMin;
-
-   // Thickness proxy (flat areas = thicker paint)
-   float thickness = 1.0 - smoothstep(0.02, 0.25, localContrast);
-
-
-   // Light diffusion (oil translucency)
-   float scatter = smoothstep(0.2, 0.9, baseLuma);
-
-
-   float shadowProtect   = 1.0 - smoothstep(0.08, 0.30, baseLuma);
-   float contrastProtect = smoothstep(0.03, 0.09, localContrast);
-
-
-   float blurAmount = 0.55;
-   blurAmount *= (1.0 - 0.65 * shadowProtect);
-   blurAmount *= (1.0 - 0.50 * contrastProtect);
-
-
-   // add thickness-based diffusion
-   blurAmount += thickness * 0.35;
-
-
-   blurAmount = clamp(blurAmount, 0.15, 0.75);
-
-
-   vec3 painter = mix(c, blur, blurAmount);
-
-
-   // highlight scattering (glow inside oil)
-   vec3 glow = blur * 1.15;
-   float glowMask = smoothstep(0.5, 0.95, baseLuma);
-   painter = mix(painter, glow, glowMask * 0.25);
-
-   float luma = luminance(painter);
-   painter = mix(vec3(luma), painter, 0.90);
-
-
-   painter.r *= 1.10;
-   painter.g *= 1.00;
-   painter.b *= 0.97;
-
-
-   painter = pow(painter, vec3(0.92));
-
-
-   float shadowLift = smoothstep(0.00, 0.22, baseLuma);
-   vec3 lifted = mix(painter * 1.18, painter, shadowLift);
-   painter = mix(lifted, painter, 0.35);
-
-
-   float levelsDark = 10.0;
-   float levelsBright = 6.0;
-   float levels = mix(levelsDark, levelsBright, smoothstep(0.08, 0.45, baseLuma));
-   painter = floor(painter * levels) / levels;
-
-   float dx = lR - lL;
-   float dy = lU - lD;
-   float edge = length(vec2(dx, dy));
-
-
-   edge *= mix(1.6, 1.0, smoothstep(0.05, 0.35, baseLuma));
-
-
-   float edgeMask = smoothstep(0.02, 0.1, edge);
-
-
-   vec3 paper = vec3(0.95, 0.88, 0.74);
-   vec3 result = mix(paper, painter, 0.92);
-   result = mix(result, blur, edgeMask * 0.75);
-
-
-   vec3 lineColor = vec3(0.42, 0.28, 0.10);
-   result = mix(result, lineColor, edgeMask * 0.05);
-
-   float grain = fract(sin(dot(uv * vec2(1400.0, 900.0),
-                       vec2(12.9898, 78.233))) * 43758.5453);
-   result *= 0.985 + 0.03 * grain;
-
-
-   FragColor = vec4(clamp(result, 0.0, 1.0), 1.0);
+    FragColor = vec4(clamp(painter, 0.0, 1.0), 1.0);
 }
 )";
-
 
 
 GLuint compileShader(GLenum type, const char* src)

@@ -32,61 +32,61 @@ uniform bool BlackInk_DebugLightFacingness <
     ui_category = "Black Ink Debug";
     ui_label = "Light Facingness";
     ui_tooltip = "Include the light-facingness debug layer in the mixed debug view.";
-> = true;
+> = false;
 
 uniform bool BlackInk_DebugSilhouette <
     ui_category = "Black Ink Debug";
     ui_label = "Silhouette";
     ui_tooltip = "Include the silhouette debug layer in the mixed debug view.";
-> = true;
+> = false;
 
 uniform bool BlackInk_DebugInternalEdge <
     ui_category = "Black Ink Debug";
     ui_label = "Internal Edge";
     ui_tooltip = "Include the internal edge debug layer in the mixed debug view.";
-> = true;
+> = false;
 
 uniform bool BlackInk_DebugShadow <
     ui_category = "Black Ink Debug";
     ui_label = "Shadow";
     ui_tooltip = "Include the shadow debug layer in the mixed debug view.";
-> = true;
+> = false;
 
 uniform bool BlackInk_DebugContactEdge <
     ui_category = "Black Ink Debug";
     ui_label = "Contact Edge";
     ui_tooltip = "Include the contact edge debug layer in the mixed debug view.";
-> = true;
+> = false;
 
 uniform bool BlackInk_DebugBlackFill <
     ui_category = "Black Ink Debug";
     ui_label = "Black Fill";
     ui_tooltip = "Include the black fill debug layer in the mixed debug view.";
-> = true;
+> = false;
 
 uniform bool BlackInk_DebugScreentone <
     ui_category = "Black Ink Debug";
     ui_label = "Screentone";
     ui_tooltip = "Include the screentone debug layer in the mixed debug view.";
-> = true;
+> = false;
 
 uniform bool BlackInk_DebugHatchDirection <
     ui_category = "Black Ink Debug";
     ui_label = "Hatch Direction";
     ui_tooltip = "Include the hatch direction debug layer in the mixed debug view.";
-> = true;
+> = false;
 
 uniform bool BlackInk_DebugLinePriority <
     ui_category = "Black Ink Debug";
     ui_label = "Line Priority";
     ui_tooltip = "Include the line-priority debug layer in the mixed debug view.";
-> = true;
+> = false;
 
 uniform bool BlackInk_DebugInkCoverage <
     ui_category = "Black Ink Debug";
     ui_label = "Ink Coverage";
     ui_tooltip = "Include the ink-coverage debug layer in the mixed debug view.";
-> = true;
+> = false;
 
 uniform float3 BlackInk_LightDir <
     ui_category = "Black Ink";
@@ -133,7 +133,7 @@ uniform float BlackInk_ToneStrength <
 uniform float BlackInk_PaperWhiteness <
     ui_category = "Black Ink";
     ui_type = "drag";
-    ui_min = 0.92; ui_max = 1.02;
+    ui_min = 0.80; ui_max = 1.02;
     ui_tooltip = "Paper base brightness before print darkening.";
 > = 0.885;
 

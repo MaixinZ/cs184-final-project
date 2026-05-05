@@ -4,7 +4,7 @@ uniform float PixelScale <
     ui_type = "slider";
     ui_min = 1.0; ui_max = 32.0;
     ui_label = "Pixel Scale";
-> = 8.0;
+> = 5.216;
 
 uniform float ColorLevels <
     ui_type = "slider";

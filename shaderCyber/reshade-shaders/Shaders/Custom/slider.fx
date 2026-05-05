@@ -1,52 +1,38 @@
 #include "../ReShade.fxh"
 
-uniform float AssistStrength <
-    ui_type = "slider";
-    ui_min = 0.0; ui_max = 1.0;
-    ui_label = "Assist Strength";
-> = 0.65;
-
-uniform float DetectionMin <
-    ui_type = "slider";
-    ui_min = 0.0; ui_max = 0.3;
-    ui_label = "Detection Min";
-> = 0.05;
-
-uniform float DetectionMax <
-    ui_type = "slider";
-    ui_min = 0.05; ui_max = 0.5;
-    ui_label = "Detection Max";
-> = 0.25;
-
-uniform float BlueShift <
-    ui_type = "slider";
-    ui_min = 0.0; ui_max = 0.5;
-    ui_label = "Blue Shift";
-> = 0.18;
+float luminance(float3 c)
+{
+    return dot(c, float3(0.299, 0.587, 0.114));
+}
 
 float3 AssistRG(float3 c)
 {
     float rStrength = c.r - max(c.g, c.b);
     float gStrength = c.g - max(c.r, c.b);
 
-    float redMask = smoothstep(DetectionMin, DetectionMax, rStrength);
-    float greenMask = smoothstep(DetectionMin, DetectionMax, gStrength);
+    float redMask = smoothstep(0.04, 0.22, rStrength);
+    float greenMask = smoothstep(0.04, 0.22, gStrength);
+
+    float luma = luminance(c);
 
     float3 redTarget = float3(
-        c.r,
-        c.g * 0.75,
-        min(c.b + BlueShift, 1.0)
+        min(c.r * 1.08 + 0.12, 1.0),
+        min(c.g * 0.75 + 0.32, 1.0),
+        c.b * 0.45
     );
 
     float3 greenTarget = float3(
-        c.r * 0.75,
-        c.g,
-        min(c.b + BlueShift, 1.0)
+        c.r * 0.45,
+        min(c.g * 0.85 + 0.05, 1.0),
+        min(c.b * 1.25 + 0.35, 1.0)
     );
 
+    redTarget *= luma / max(luminance(redTarget), 0.001);
+    greenTarget *= luma / max(luminance(greenTarget), 0.001);
+
     float3 outColor = c;
-    outColor = lerp(outColor, redTarget, redMask * AssistStrength);
-    outColor = lerp(outColor, greenTarget, greenMask * AssistStrength);
+    outColor = lerp(outColor, redTarget, redMask * 0.85);
+    outColor = lerp(outColor, greenTarget, greenMask * 0.85);
 
     return saturate(outColor);
 }

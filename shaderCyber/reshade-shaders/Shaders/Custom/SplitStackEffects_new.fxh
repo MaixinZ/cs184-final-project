@@ -14,6 +14,10 @@
 #include "AppendShared/DepthLayeredPainterly_append_shared.fxh"
 #include "AppendShared/DepthOutlineOverlay_append_shared.fxh"
 #include "AppendShared/DepthScreentoneOverlay_append_shared.fxh"
+#include "AppendShared/SilverDepthEdge_append_shared.fxh"
+#include "AppendShared/NearBrightFarDark_append_shared.fxh"
+#include "AppendShared/DepthBandAssist_append_shared.fxh"
+#include "AppendShared/AtmosphericDepthCue_append_shared.fxh"
 
 #define SSC_EFFECT_NONE 0
 #define SSC_EFFECT_OIL_PAINT 1
@@ -29,6 +33,10 @@
 #define SSC_EFFECT_DEPTH_LAYERED_PAINTERLY 11
 #define SSC_EFFECT_DEPTH_OUTLINE 12
 #define SSC_EFFECT_DEPTH_SCREENTONE 13
+#define SSC_EFFECT_SILVER_DEPTH_EDGE 14
+#define SSC_EFFECT_NEAR_BRIGHT_FAR_DARK 15
+#define SSC_EFFECT_DEPTH_BAND_ASSIST 16
+#define SSC_EFFECT_ATMOSPHERIC_DEPTH_CUE 17
 
 float3 SSB_ApplyEffect(sampler source_sampler, float2 uv, int effect_id)
 {
@@ -58,6 +66,14 @@ float3 SSB_ApplyEffect(sampler source_sampler, float2 uv, int effect_id)
         return DOOAppend_ApplyFromSampler(source_sampler, uv);
     if (effect_id == SSC_EFFECT_DEPTH_SCREENTONE)
         return DSOAppend_ApplyFromSampler(source_sampler, uv);
+    if (effect_id == SSC_EFFECT_SILVER_DEPTH_EDGE)
+        return SDEAppend_ApplyFromSampler(source_sampler, uv);
+    if (effect_id == SSC_EFFECT_NEAR_BRIGHT_FAR_DARK)
+        return NBFDAppend_ApplyFromSampler(source_sampler, uv);
+    if (effect_id == SSC_EFFECT_DEPTH_BAND_ASSIST)
+        return DBAAppend_ApplyFromSampler(source_sampler, uv);
+    if (effect_id == SSC_EFFECT_ATMOSPHERIC_DEPTH_CUE)
+        return ADCAppend_ApplyFromSampler(source_sampler, uv);
 
     return tex2D(source_sampler, saturate(uv)).rgb;
 }

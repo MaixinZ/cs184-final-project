@@ -36,7 +36,7 @@ uniform float Celluloid_ShadowThreshold <
     ui_type = "drag";
     ui_min = 0.0; ui_max = 1.0;
     ui_tooltip = "Entry point of the shadow band.";
-> = 0.36;
+> = 0.484;
 
 uniform float Celluloid_ShadowSoftness <
     ui_category = "Celluloid";
@@ -78,7 +78,7 @@ uniform float Celluloid_OutlineThreshold <
     ui_type = "drag";
     ui_min = 0.01; ui_max = 0.40;
     ui_tooltip = "Sensitivity of screen-space outline extraction.";
-> = 0.16;
+> = 0.269;
 
 uniform int Celluloid_GradientMode <
     ui_category = "Celluloid";

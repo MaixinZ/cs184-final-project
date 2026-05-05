@@ -71,7 +71,11 @@
     "Depth Fog Append\0" \
     "Depth Layered Painterly Append\0" \
     "Depth Outline Append\0" \
-    "Depth Screentone Append\0"
+    "Depth Screentone Append\0" \
+    "Silver Depth Edge Append\0" \
+    "Near Bright Far Dark Append\0" \
+    "Depth Band Assist Append\0" \
+    "Atmospheric Depth Cue Append\0"
 
 uniform int MaskMode <
 	ui_category = "Split Screen Controller";

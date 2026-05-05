@@ -6,21 +6,27 @@
 #endif
 
 uniform float PixelScale <
+    ui_category = "Pixel Art";
     ui_type = "slider";
     ui_min = 1.0; ui_max = 32.0;
     ui_label = "Pixel Scale";
-> = 8.0;
+    ui_tooltip = "Size of the simulated pixel blocks.";
+> = 5.216;
 
 uniform float ColorLevels <
+    ui_category = "Pixel Art";
     ui_type = "slider";
     ui_min = 2.0; ui_max = 16.0;
     ui_label = "Color Levels";
+    ui_tooltip = "Number of quantized color levels per channel.";
 > = 6.0;
 
 uniform float SaturationBoost <
+    ui_category = "Pixel Art";
     ui_type = "slider";
     ui_min = 0.0; ui_max = 2.0;
     ui_label = "Saturation Boost";
+    ui_tooltip = "Color intensity after pixel sampling and quantization.";
 > = 1.2;
 
 float PixelArtAppend_Luminance(float3 c)

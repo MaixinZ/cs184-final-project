@@ -2,6 +2,11 @@
 #define SPLIT_STACK_EFFECTS_FXH
 
 #include "DepthDistanceCommon.fxh"
+#include "AppendShared/oilPaint_append_shared.fxh"
+#include "AppendShared/SilverDepthEdge_append_shared.fxh"
+#include "AppendShared/NearBrightFarDark_append_shared.fxh"
+#include "AppendShared/DepthBandAssist_append_shared.fxh"
+#include "AppendShared/AtmosphericDepthCue_append_shared.fxh"
 
 #define SSC_EFFECT_NONE 0
 #define SSC_EFFECT_OIL_PAINT 1
@@ -30,6 +35,10 @@
 #define SSC_EFFECT_DEPTH_LAYERED_PAINTERLY_APPEND 24
 #define SSC_EFFECT_DEPTH_OUTLINE_APPEND 25
 #define SSC_EFFECT_DEPTH_SCREENTONE_APPEND 26
+#define SSC_EFFECT_SILVER_DEPTH_EDGE_APPEND 27
+#define SSC_EFFECT_NEAR_BRIGHT_FAR_DARK_APPEND 28
+#define SSC_EFFECT_DEPTH_BAND_ASSIST_APPEND 29
+#define SSC_EFFECT_ATMOSPHERIC_DEPTH_CUE_APPEND 30
 
 uniform float SSC_PainterStrength < ui_category = "Split Effect - Painter"; ui_type = "slider"; ui_label = "Painter Strength"; ui_min = 0.0; ui_max = 1.0; > = 0.72;
 uniform float SSC_PainterPosterLevels < ui_category = "Split Effect - Painter"; ui_type = "slider"; ui_label = "Painter Levels"; ui_min = 2.0; ui_max = 12.0; ui_step = 1.0; > = 6.0;
@@ -95,89 +104,7 @@ float3 SSB_SceneCrossBlur(sampler source_sampler, float2 uv, float radius)
 
 float3 SSB_OilPaint(sampler source_sampler, float2 uv)
 {
-    float2 texel = BUFFER_PIXEL_SIZE;
-
-    float3 c = SSB_SampleScene(source_sampler, uv);
-    float baseLuma = SSB_Luminance(c);
-
-    float3 cL  = SSB_SampleScene(source_sampler, uv - float2(texel.x, 0.0));
-    float3 cR  = SSB_SampleScene(source_sampler, uv + float2(texel.x, 0.0));
-    float3 cU  = SSB_SampleScene(source_sampler, uv + float2(0.0, texel.y));
-    float3 cD  = SSB_SampleScene(source_sampler, uv - float2(0.0, texel.y));
-    float3 cUL = SSB_SampleScene(source_sampler, uv + float2(-texel.x, texel.y));
-    float3 cUR = SSB_SampleScene(source_sampler, uv + float2(texel.x, texel.y));
-    float3 cDL = SSB_SampleScene(source_sampler, uv + float2(-texel.x, -texel.y));
-    float3 cDR = SSB_SampleScene(source_sampler, uv + float2(texel.x, -texel.y));
-
-    float3 blur = float3(0.0, 0.0, 0.0);
-    blur += c * 4.0;
-    blur += cL + cR + cU + cD;
-    blur += cUL + cUR + cDL + cDR;
-    blur /= 12.0;
-
-    float lL  = SSB_Luminance(cL);
-    float lR  = SSB_Luminance(cR);
-    float lU  = SSB_Luminance(cU);
-    float lD  = SSB_Luminance(cD);
-    float lUL = SSB_Luminance(cUL);
-    float lUR = SSB_Luminance(cUR);
-    float lDL = SSB_Luminance(cDL);
-    float lDR = SSB_Luminance(cDR);
-
-    float localMin = min(min(min(lL, lR), min(lU, lD)), min(min(lUL, lUR), min(lDL, lDR)));
-    float localMax = max(max(max(lL, lR), max(lU, lD)), max(max(lUL, lUR), max(lDL, lDR)));
-    float localContrast = localMax - localMin;
-
-    float shadowProtect = 1.0 - smoothstep(0.08, 0.30, baseLuma);
-    float contrastProtect = smoothstep(0.03, 0.09, localContrast);
-
-    float blurAmount = 0.55;
-    blurAmount *= (1.0 - 0.65 * shadowProtect);
-    blurAmount *= (1.0 - 0.50 * contrastProtect);
-    blurAmount = clamp(blurAmount, 0.10, 0.55);
-
-    float3 painter = lerp(c, blur, blurAmount);
-
-    float luma = SSB_Luminance(painter);
-    painter = lerp(luma.xxx, painter, 0.90);
-
-    painter.r *= 1.10;
-    painter.g *= 1.00;
-    painter.b *= 0.97;
-
-    painter = pow(painter, 0.92.xxx);
-
-    float shadowLift = smoothstep(0.00, 0.22, baseLuma);
-    float3 lifted = lerp(painter * 1.18, painter, shadowLift);
-    painter = lerp(lifted, painter, 0.35);
-
-    float levelsDark = 10.0;
-    float levelsBright = 6.0;
-    float levels = lerp(levelsDark, levelsBright, smoothstep(0.08, 0.45, baseLuma));
-    painter = floor(painter * levels) / levels;
-
-    float dx = lR - lL;
-    float dy = lU - lD;
-    float edge = length(float2(dx, dy));
-    edge *= lerp(1.6, 1.0, smoothstep(0.05, 0.35, baseLuma));
-
-    float3 paper = float3(0.95, 0.88, 0.74);
-    float3 result = lerp(paper, painter, 0.92);
-
-    edge *= 1.1;
-
-    float3 lineColor = float3(0.42, 0.28, 0.10);
-    float lineMask = smoothstep(0.035, 0.12, edge);
-    result = lerp(result, lineColor, lineMask * 0.72);
-
-    float3 gold = float3(0.82, 0.68, 0.30);
-    float goldMask = smoothstep(0.09, 0.20, edge) * 0.28;
-    result = lerp(result, gold, goldMask);
-
-    float grain = frac(sin(dot(uv * float2(1400.0, 900.0), float2(12.9898, 78.233))) * 43758.5453);
-    result *= 0.985 + 0.03 * grain;
-
-    return float3(saturate(result));
+    return OilPaintAppend_ApplyFromSampler(source_sampler, uv);
 }
 
 float3 SSB_Painter(sampler source_sampler, float2 uv)
@@ -392,6 +319,10 @@ float3 SSB_ApplyEffect(sampler source_sampler, float2 uv, int effect_id)
     if (effect_id == SSC_EFFECT_DEPTH_LAYERED_PAINTERLY_APPEND) return SSB_DepthLayeredPainterly(source_sampler, uv);
     if (effect_id == SSC_EFFECT_DEPTH_OUTLINE_APPEND) return SSB_DepthOutline(source_sampler, uv);
     if (effect_id == SSC_EFFECT_DEPTH_SCREENTONE_APPEND) return SSB_DepthScreentone(source_sampler, uv);
+    if (effect_id == SSC_EFFECT_SILVER_DEPTH_EDGE_APPEND) return SDEAppend_ApplyFromSampler(source_sampler, uv);
+    if (effect_id == SSC_EFFECT_NEAR_BRIGHT_FAR_DARK_APPEND) return NBFDAppend_ApplyFromSampler(source_sampler, uv);
+    if (effect_id == SSC_EFFECT_DEPTH_BAND_ASSIST_APPEND) return DBAAppend_ApplyFromSampler(source_sampler, uv);
+    if (effect_id == SSC_EFFECT_ATMOSPHERIC_DEPTH_CUE_APPEND) return ADCAppend_ApplyFromSampler(source_sampler, uv);
     return SSB_DepthScreentone(source_sampler, uv);
 }
 

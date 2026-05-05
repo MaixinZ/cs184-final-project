@@ -58,7 +58,11 @@
     "Depth Fog Stylization\0" \
     "Depth Layered Painterly\0" \
     "Depth Outline Overlay\0" \
-    "Depth Screentone Overlay\0"
+    "Depth Screentone Overlay\0" \
+    "Silver Depth Edge\0" \
+    "Near Bright Far Dark\0" \
+    "Depth Band Assist\0" \
+    "Atmospheric Depth Cue\0"
 
 uniform int MaskMode <
 	ui_category = "Split Screen Controller";
